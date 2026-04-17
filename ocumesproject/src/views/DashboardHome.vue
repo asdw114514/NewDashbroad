@@ -110,7 +110,7 @@ function getOeeColor(oee) {
   transition: all 0.2s ease;
 }
 .station-item:hover {
-  background-color: #f8f9fa;
+  background-color: #4a5a6a;
   transform: translateX(5px);
 }
 .border-transparent {

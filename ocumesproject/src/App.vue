@@ -8,7 +8,7 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: #e9ecef; /* 戰情室的底色 */
+  background-color: #5e7185 !important; /* 戰情室的底色 */
   font-family: 'Noto Sans TC', sans-serif;
 }
 </style>
