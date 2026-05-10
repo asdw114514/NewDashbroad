@@ -1,10 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardLayout from '../layouts/DashboardLayout.vue'
 import DashboardHome from '../views/DashboardHome.vue'
-import Dashboard2 from '../views/dashboard2.vue'
-import dashboard3 from '../views/dashboard3.vue'
-import dashboard4 from '@/views/dashboard4.vue'
+import Warings from '../views/Warings.vue'
+import ProductionReport from '../views/ProductionReport.vue'
 import dashboard5 from '@/views/dashboard5.vue'
+import dashboard6 from '@/views/dashboard6.vue'
+import dashboard7 from '@/views/dashboard7.vue'
+import dashboard8 from '@/views/dashboard8.vue'
+
+
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -17,27 +21,40 @@ const router = createRouter({
       ]
     },
     {
-      path: '/da2',
+      path: '/warings',
       children: [
-        { path: '', component: Dashboard2 }
+        { path: '', component: Warings }
       ]
     },
     {
-      path: '/da3',
+      path: '/production-report',
       children: [
-        { path: '', component: dashboard3 }
-      ]
-    },
-    {
-      path: '/da4',
-      children: [
-        { path: '', component: dashboard4 }
+        { path: '', component: ProductionReport }
       ]
     },
     {
       path: '/da5',
       children: [
         { path: '', component: dashboard5 }
+      ]
+    },
+    
+    {
+      path: '/da6',
+      children: [
+        { path: '', component:  dashboard6 }
+      ]
+    },
+    {
+      path: '/da7',
+      children: [
+        { path: '', component:  dashboard7 }
+      ]
+    },
+    {
+      path: '/da8',
+      children: [
+        { path: '', component: dashboard8 }
       ]
     },
     {

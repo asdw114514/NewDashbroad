@@ -72,14 +72,14 @@
           </div>
         </div>
       </section>
-
+      <NavDrawer />
     </main>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
-
+import NavDrawer from '@/components/NavDrawer.vue'
 // --- 系統時間 ---
 const currentTime = ref('');
 let timeTimer = null;
@@ -100,10 +100,10 @@ const esgKpis = ref([
 
 // --- 高耗能設備數據 ---
 const topConsumers = ref([
-  { id: 'ATD-101', name: '主機裝配線', currentPower: 450, usagePercent: 92 },
-  { id: 'CNC-004', name: '五軸加工機', currentPower: 380, usagePercent: 78 },
-  { id: 'OVEN-02', name: '高溫烘烤爐', currentPower: 310, usagePercent: 65 }
-]);
+  { id: 'INJ-101', name: '射出成型機',  currentPower: 450, usagePercent: 92 },
+  { id: 'INJ-102', name: '射出成型機',  currentPower: 380, usagePercent: 78 },
+  { id: 'INJ-103', name: '射出成型機',  currentPower: 310, usagePercent: 65 }
+])
 
 const getPowerColor = (percent) => {
   if (percent >= 90) return '#ef4444'; // 超載警告紅
