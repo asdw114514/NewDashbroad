@@ -27,7 +27,30 @@
 
     <!-- 導覽清單 -->
     <nav class="drawer-nav">
-      <div class="nav-section-title">📁 後台管理功能</div>
+
+      <!-- 監控功能區塊 -->
+      <div class="nav-section-title">📡 監控功能</div>
+      <div
+        v-for="item in monitorLinks"
+        :key="item.path"
+        class="drawer-item"
+        :class="{ active: route.path === item.path }"
+        @click="navigate(item.path)"
+      >
+        <span class="item-icon">{{ item.icon }}</span>
+        <div class="item-info">
+          <span class="item-name">{{ item.name }}</span>
+          <span class="item-desc">{{ item.desc }}</span>
+        </div>
+        <span class="item-active-dot" v-if="route.path === item.path">◀</span>
+        <span class="item-arrow" v-else>›</span>
+      </div>
+
+      <!-- 分隔線 -->
+      <div class="nav-divider"></div>
+
+      <!-- 後台管理區塊 -->
+      <div class="nav-section-title">⚙️ 後台管理系統</div>
       <div
         v-for="item in adminLinks"
         :key="item.path"
@@ -43,6 +66,7 @@
         <span class="item-active-dot" v-if="route.path === item.path">◀</span>
         <span class="item-arrow" v-else>›</span>
       </div>
+
     </nav>
 
     <!-- 底部：切換回戰情室 -->
@@ -63,19 +87,27 @@ const route = useRoute()
 const router = useRouter()
 const isOpen = ref(false)
 
-// 所有後台功能的導覽清單
-const adminLinks = [
-  { path: '/warings',           icon: '⚠️', name: '異常日誌',  desc: 'PLC / PC 錯誤訊息查詢' },
-  { path: '/production-report', icon: '📋', name: '生產報表',  desc: '即時、歷史資訊與趨勢圖' },
-  { path: '/da5',               icon: '🌱', name: '能源 ESG',  desc: '用電負載與碳排監控' },
-  { path: '/da6',               icon: '👷', name: '人員工位',  desc: '工位派駐與產量追蹤' },
-  { path: '/da7',               icon: '🔧', name: '模具壽命',  desc: '治具使用次數與保養管理' },
+// 監控功能清單
+const monitorLinks = [
+  { path: '/warings',           icon: '⚠️', name: '異常日誌',   desc: 'PLC / PC 錯誤訊息查詢' },
+  { path: '/production-report', icon: '📋', name: '生產報表',   desc: '即時、歷史資訊與趨勢圖' },
+  { path: '/da5',               icon: '🌱', name: '能源 ESG',   desc: '用電負載與碳排監控' },
+  { path: '/da6',               icon: '👷', name: '人員工位',   desc: '工位派駐與產量追蹤' },
+  { path: '/da7',               icon: '🔧', name: '模具壽命',   desc: '治具使用次數與保養管理' },
   { path: '/da8',               icon: '🏭', name: '射出成型機', desc: '製程參數、本班計數、異常紀錄' },
 ]
 
+// 後台管理清單
+const adminLinks = [
+  { path: '/admin', icon: '⚙️', name: 'MES 後台管理', desc: '六大核心管理模組入口' },
+]
+
+// 所有連結合併，用於判斷目前頁面名稱
+const allLinks = [...monitorLinks, ...adminLinks]
+
 // 自動顯示目前頁面名稱
 const currentPageLabel = computed(() => {
-  const found = adminLinks.find(l => l.path === route.path)
+  const found = allLinks.find(l => l.path === route.path)
   return found ? `${found.icon} ${found.name}` : '📊 監控戰情室'
 })
 
@@ -178,6 +210,13 @@ const navigate = (path) => {
   font-weight: bold;
   letter-spacing: 1px;
 }
+
+/* 分隔線 */
+.nav-divider {
+  margin: 0.5rem 1.5rem;
+  border-top: 1px solid #1e293b;
+}
+
 .drawer-item {
   display: flex;
   align-items: center;
