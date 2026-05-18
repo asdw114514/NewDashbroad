@@ -2,10 +2,10 @@
   <div class="dashboard-wrapper">
     <!-- 戰情室頂部標題列 -->
     <header class="bg-dark text-white p-3 d-flex justify-content-between align-items-center shadow-sm">
-      <h3 class="m-0 fw-bold">🏭 兆豐工業 - 智慧製造戰情室</h3>
+      <h3 class="m-0 fw-bold">🏭 承揚工業 - Dashboard</h3>
       <div class="text-end">
-        <div class="fs-5 fw-bold text-info">2023-10-25 14:30:00</div>
-        <small class="text-light">值班主管：王大明</small>
+        <div class="fs-5 fw-bold text-info">{{ currentTime }}</div>
+        <small class="text-light">值班主管：盧承揚</small>
       </div>
     </header>
 
@@ -15,6 +15,27 @@
     </main>
   </div>
 </template>
+
+<script setup>
+  import { ref, onMounted, onUnmounted } from 'vue';
+    const currentTime = ref('');
+    let timeTimer = null;
+  const updateTime = () => {
+    const now = new Date();
+    const dateObj = now.toISOString().split('T')[0];
+    const timeObj = now.toTimeString().split(' ')[0];
+    currentTime.value = `${dateObj} ${timeObj}`;
+  };
+  onMounted(() => {
+    updateTime();
+    timeTimer = setInterval(updateTime, 1000);
+  });
+
+  onUnmounted(() => {
+    clearInterval(timeTimer);
+
+  });
+</script>
 
 <style scoped>
 .dashboard-wrapper {
