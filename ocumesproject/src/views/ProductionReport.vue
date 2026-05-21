@@ -364,8 +364,8 @@ onUnmounted(() => {
 .machine-btn { padding: 0.5rem 1.25rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 999px; color: #334155; font-weight: bold; cursor: pointer; transition: all 0.2s; }
 .machine-btn:hover { background-color: #e2e8f0; }
 .machine-btn.selected { background-color: #0ea5e9; color: white; border-color: #0ea5e9; }
-.table-card { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-.table-wrapper { overflow: auto; flex: 1; }
+.table-card {overflow: hidden;display: flex;flex-direction: column;flex-shrink: 0; /* 不隨頁面拉伸 */}
+.table-wrapper {overflow-y: auto;max-height: 420px; /* 固定最大高度，超過就在框內滾動 */}
 .data-table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
 .data-table th { background-color: #e2e8f0; padding: 1rem; color: #334155; font-size: 0.85rem; font-weight: bold; position: sticky; top: 0; border-bottom: 2px solid #cbd5e1; z-index: 1; }
 .data-table td { padding: 0.9rem 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
