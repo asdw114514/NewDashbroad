@@ -131,6 +131,15 @@ const modules = ref([
     desc: '管理操作人員權限、生產參數設定及系統配置。',
     colorClass: 'color-red',
     done: false
+  },
+  {
+  path: '/admin/personnel',
+  icon: '👷',
+  name: '人員管理',
+  en: 'Personnel Management',
+  desc: '管理員工名單、熟練度，以及每班次的工位派工設定。',
+  colorClass: 'color-teal',
+  done: true   // ✅ 已實作
   }
 ])
 
@@ -175,6 +184,7 @@ onUnmounted(() => {
 .header-right { text-align: right; }
 .time { color: #22d3ee; font-family: monospace; font-size: 1.25rem; }
 .supervisor { font-size: 0.875rem; color: #9ca3af; }
+.color-teal { background-color: #f0fdfa; border-bottom: 4px solid #14b8a6; }
 
 /* Main */
 .main-content {

@@ -14,6 +14,7 @@ import AdminWip from '@/views/AdminWip.vue'
 import AdminQuality from '@/views/AdminQuality.vue'
 import AdminMaterial from '@/views/AdminMaterial.vue'
 import AdminSystem from '@/views/AdminSystem.vue'
+import AdminPersonnel from '@/views/AdminPersonnel.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -36,6 +37,7 @@ const router = createRouter({
     { path: '/admin/quality',     component: AdminQuality },
     { path: '/admin/material',    component: AdminMaterial },
     { path: '/admin/system',      component: AdminSystem },
+    { path: '/admin/personnel',   component: AdminPersonnel },
     { path: '/', redirect: '/dashboard' }
   ]
 })
