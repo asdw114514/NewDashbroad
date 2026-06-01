@@ -3,115 +3,79 @@
     <header class="header">
       <div class="header-left">
         <button class="back-btn" @click="router.push('/admin')">← 返回</button>
-        <span class="title">🏭 兆豐工業 - 智慧製造戰情室</span>
-        <span class="badge bg-green">品質管理</span>
+        <span class="title">🧪 品質管理</span>
       </div>
       <div class="header-right">
         <div class="time">{{ currentTime }}</div>
-        <div class="supervisor">系統管理員：王大明</div>
+        <div class="api-status" :class="apiStatusClass">API：{{ apiStatus }}</div>
       </div>
     </header>
 
     <main class="main-content">
-
-      <!-- KPI -->
+      <p v-if="operationError" class="error-message">{{ operationError }}</p>
       <section class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-icon">🔍</div>
-          <div class="kpi-info">
-            <div class="kpi-label">今日檢驗數</div>
-            <div class="kpi-value text-white">1,240</div>
-          </div>
+        <div class="kpi-card"><div class="kpi-label">總批次數</div><div class="kpi-value">{{ kpis.batches }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">總生產數</div><div class="kpi-value">{{ kpis.total }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">總良品數</div><div class="kpi-value text-green">{{ kpis.ok }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">平均良品率</div><div class="kpi-value text-blue">{{ kpis.okRate }}%</div></div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <span>📋 品質紀錄</span>
+          <button class="btn btn-primary" @click="showAddModal = true">➕ 新增品質紀錄</button>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">✅</div>
-          <div class="kpi-info">
-            <div class="kpi-label">良品數</div>
-            <div class="kpi-value text-green">1,198</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">❌</div>
-          <div class="kpi-info">
-            <div class="kpi-label">不良品數</div>
-            <div class="kpi-value text-red">42</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">📈</div>
-          <div class="kpi-info">
-            <div class="kpi-label">整體良品率</div>
-            <div class="kpi-value text-green">96.6%</div>
-          </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>機台</th>
+                <th>批次號</th>
+                <th>總數</th>
+                <th>良品</th>
+                <th>NG數</th>
+                <th>NG率</th>
+                <th>NG原因</th>
+                <th>刪除</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in qualityRecords" :key="item.batchId">
+                <td>{{ item.date }}</td>
+                <td>{{ item.machine }}</td>
+                <td>{{ item.batchId }}</td>
+                <td>{{ item.total }}</td>
+                <td>{{ item.ok }}</td>
+                <td>{{ item.ng }}</td>
+                <td :class="ngRateClass(item.ngRate)">{{ Number(item.ngRate || 0).toFixed(1) }}%</td>
+                <td>{{ item.ngReason || '-' }}</td>
+                <td><button class="btn btn-danger" @click="deleteRecord(item.batchId)">🗑️</button></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
-      <div class="bottom-grid">
-
-        <!-- 檢驗記錄 -->
-        <section class="card">
-          <div class="card-header">
-            <span>📋 檢驗記錄</span>
-            <select class="filter-select" v-model="filterResult">
-              <option value="">全部</option>
-              <option value="合格">合格</option>
-              <option value="不合格">不合格</option>
-              <option value="待複檢">待複檢</option>
+      <div v-if="showAddModal" class="modal-mask" @click.self="showAddModal = false">
+        <div class="modal">
+          <h3>新增品質紀錄</h3>
+          <div class="form-grid">
+            <input v-model="newRecord.date" type="date" class="input" />
+            <select v-model="newRecord.machine" class="input">
+              <option disabled value="">選擇機台</option>
+              <option v-for="machine in machineOptions" :key="machine" :value="machine">{{ machine }}</option>
             </select>
+            <input v-model.trim="newRecord.batchId" class="input" placeholder="批次號" />
+            <input v-model.number="newRecord.total" type="number" min="1" class="input" placeholder="總數" />
+            <input v-model.number="newRecord.ok" type="number" min="0" class="input" placeholder="良品數" />
+            <input v-model.trim="newRecord.ngReason" class="input" placeholder="NG原因（可選）" />
           </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>批號</th>
-                  <th>產品</th>
-                  <th>機台</th>
-                  <th>檢驗數</th>
-                  <th>良品</th>
-                  <th>不良品</th>
-                  <th>良品率</th>
-                  <th>判定</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="rec in filteredRecords" :key="rec.lot">
-                  <td class="id-cell">{{ rec.lot }}</td>
-                  <td>{{ rec.product }}</td>
-                  <td><span class="machine-tag">{{ rec.machine }}</span></td>
-                  <td>{{ rec.total }}</td>
-                  <td class="text-green">{{ rec.pass }}</td>
-                  <td class="text-red">{{ rec.fail }}</td>
-                  <td>
-                    <span :class="rec.rate >= 98 ? 'text-green' : rec.rate >= 95 ? 'text-yellow' : 'text-red'">
-                      {{ rec.rate }}%
-                    </span>
-                  </td>
-                  <td>
-                    <span class="status-badge" :class="rec.resultClass">{{ rec.result }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="modal-actions">
+            <button class="btn" @click="showAddModal = false">取消</button>
+            <button class="btn btn-primary" @click="addRecord">儲存</button>
           </div>
-        </section>
-
-        <!-- 右側：不良分析 -->
-        <section class="card">
-          <div class="card-header">📊 不良類型分析</div>
-          <div class="defect-list">
-            <div class="defect-item" v-for="d in defects" :key="d.type">
-              <div class="defect-top">
-                <span class="defect-type">{{ d.type }}</span>
-                <span class="defect-count text-red">{{ d.count }} 件</span>
-              </div>
-              <div class="defect-bar-bg">
-                <div class="defect-bar-fill" :style="{ width: (d.count / maxDefect * 100) + '%' }"></div>
-              </div>
-              <div class="defect-pct text-yellow">佔比 {{ d.pct }}%</div>
-            </div>
-          </div>
-        </section>
-
+        </div>
       </div>
     </main>
 
@@ -120,93 +84,148 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavDrawer from '@/components/NavDrawer.vue'
 
+const API_BASE = 'http://localhost:1880'
 const router = useRouter()
+const qualityRecords = ref([])
+const showAddModal = ref(false)
 const currentTime = ref('')
-let timer = null
-const updateTime = () => {
+const apiStatus = ref('檢查中')
+const apiStatusClass = ref('api-warn')
+const operationError = ref('')
+const machineOptions = ['INJ-101', 'INJ-102', 'INJ-103', 'INJ-104', 'INJ-105', 'INJ-106']
+const newRecord = ref({ date: '', machine: '', batchId: '', total: null, ok: null, ngReason: '' })
+
+let timer
+
+const kpis = computed(() => {
+  const batches = qualityRecords.value.length
+  const total = qualityRecords.value.reduce((sum, item) => sum + Number(item.total || 0), 0)
+  const ok = qualityRecords.value.reduce((sum, item) => sum + Number(item.ok || 0), 0)
+  const okRate = total > 0 ? ((ok / total) * 100).toFixed(1) : '0.0'
+  return { batches, total, ok, okRate }
+})
+
+function updateTime() {
   const now = new Date()
   currentTime.value = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`
 }
 
-const filterResult = ref('')
+function ngRateClass(rate) {
+  const value = Number(rate || 0)
+  if (value >= 10) return 'text-red'
+  if (value >= 5) return 'text-orange'
+  return 'text-green'
+}
 
-const records = ref([
-  { lot: 'LOT-20260513-001', product: '外殼 A型', machine: 'INJ-101', total: 200, pass: 198, fail: 2,  rate: 99.0, result: '合格',  resultClass: 'status-pass' },
-  { lot: 'LOT-20260513-002', product: '齒輪組 B', machine: 'CNC-201', total: 150, pass: 138, fail: 12, rate: 92.0, result: '不合格', resultClass: 'status-fail' },
-  { lot: 'LOT-20260513-003', product: '端蓋 C型', machine: 'INJ-102', total: 300, pass: 295, fail: 5,  rate: 98.3, result: '合格',  resultClass: 'status-pass' },
-  { lot: 'LOT-20260513-004', product: '支架 D型', machine: 'ASM-301', total: 100, pass: 94,  fail: 6,  rate: 94.0, result: '待複檢', resultClass: 'status-review' },
-  { lot: 'LOT-20260513-005', product: '底板 E型', machine: 'INJ-103', total: 80,  pass: 63,  fail: 17, rate: 78.8, result: '不合格', resultClass: 'status-fail' },
-  { lot: 'LOT-20260513-006', product: '外殼 F型', machine: 'INJ-104', total: 250, pass: 248, fail: 2,  rate: 99.2, result: '合格',  resultClass: 'status-pass' },
-  { lot: 'LOT-20260513-007', product: '轉子 G型', machine: 'CNC-202', total: 160, pass: 162, fail: 0,  rate: 100,  result: '合格',  resultClass: 'status-pass' },
-])
+async function request(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
 
-const filteredRecords = computed(() => {
-  if (!filterResult.value) return records.value
-  return records.value.filter(r => r.result === filterResult.value)
+async function fetchQuality() {
+  try {
+    const result = await request('/quality')
+    qualityRecords.value = Array.isArray(result.data) ? result.data : []
+    apiStatus.value = '正常'
+    apiStatusClass.value = 'api-ok'
+  } catch {
+    qualityRecords.value = []
+    apiStatus.value = '異常'
+    apiStatusClass.value = 'api-error'
+  }
+}
+
+async function addRecord() {
+  operationError.value = ''
+  if (!newRecord.value.date || !newRecord.value.machine || !newRecord.value.batchId || newRecord.value.total === null || Number(newRecord.value.total) <= 0 || newRecord.value.ok === null) {
+    operationError.value = '請完整填寫品質紀錄欄位'
+    return
+  }
+  if (Number(newRecord.value.ok) > Number(newRecord.value.total) || Number(newRecord.value.ok) < 0) {
+    operationError.value = '良品數需介於 0 到總數之間'
+    return
+  }
+
+  try {
+    await request('/quality/add', {
+      method: 'POST',
+      body: JSON.stringify(newRecord.value),
+    })
+
+    showAddModal.value = false
+    newRecord.value = { date: '', machine: '', batchId: '', total: null, ok: null, ngReason: '' }
+    await fetchQuality()
+  } catch {
+    operationError.value = '新增品質紀錄失敗'
+  }
+}
+
+async function deleteRecord(batchId) {
+  if (!window.confirm(`確定刪除 ${batchId}？`)) return
+  operationError.value = ''
+  try {
+    await request('/quality/delete', {
+      method: 'POST',
+      body: JSON.stringify({ batchId }),
+    })
+    await fetchQuality()
+  } catch {
+    operationError.value = '刪除品質紀錄失敗'
+  }
+}
+
+onMounted(async () => {
+  updateTime()
+  timer = setInterval(updateTime, 1000)
+  await fetchQuality()
 })
 
-const defects = ref([
-  { type: '尺寸超差', count: 18, pct: 42.9 },
-  { type: '表面刮傷', count: 10, pct: 23.8 },
-  { type: '毛邊殘留', count: 8,  pct: 19.0 },
-  { type: '缺料短射', count: 4,  pct: 9.5  },
-  { type: '顏色異常', count: 2,  pct: 4.8  },
-])
-
-const maxDefect = computed(() => Math.max(...defects.value.map(d => d.count)))
-
-onMounted(() => { updateTime(); timer = setInterval(updateTime, 1000) })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  clearInterval(timer)
+})
 </script>
 
 <style scoped>
-.dashboard-container { min-height: 100vh; background-color: #475569; font-family: sans-serif; display: flex; flex-direction: column; }
-.header { background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-.header-left { display: flex; align-items: center; gap: 1rem; }
-.title { font-size: 1.5rem; font-weight: bold; }
-.badge { padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.875rem; font-weight: bold; color: white; }
-.bg-green { background-color: #22c55e; }
-.back-btn { background: #1e293b; color: #94a3b8; border: none; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
-.back-btn:hover { background: #334155; color: white; }
+.dashboard-container { height: 100vh; overflow: hidden; background: #475569; display: flex; flex-direction: column; font-family: sans-serif; }
+.header { flex-shrink: 0; background: #0f172a; color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+.header-left { display: flex; gap: 1rem; align-items: center; }
+.title { font-size: 1.2rem; font-weight: 700; }
+.back-btn { background: #1e293b; color: #cbd5e1; border: 0; border-radius: 6px; padding: 0.4rem 0.8rem; cursor: pointer; }
 .header-right { text-align: right; }
-.time { color: #22d3ee; font-family: monospace; font-size: 1.25rem; }
-.supervisor { font-size: 0.875rem; color: #9ca3af; }
-.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex: 1; }
-.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-.kpi-card { background-color: #1e293b; border-radius: 0.75rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-.kpi-icon { font-size: 2rem; }
-.kpi-label { color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem; }
-.kpi-value { font-size: 2rem; font-weight: bold; }
-.bottom-grid { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; }
-.card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
-.card-header { background-color: #1e293b; color: white; padding: 0.75rem 1.25rem; font-weight: bold; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
-.filter-select { background: #334155; border: none; color: white; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; outline: none; cursor: pointer; }
+.time { color: #22d3ee; font-family: monospace; }
+.api-status { font-size: 0.82rem; margin-top: 0.2rem; }
+.api-ok { color: #4ade80; }
+.api-error { color: #f87171; }
+.api-warn { color: #fbbf24; }
+.main-content { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+.kpi-card { background: #fff; border-radius: 10px; padding: 1rem; }
+.kpi-label { color: #64748b; font-size: 0.85rem; }
+.kpi-value { font-size: 1.8rem; font-weight: 700; color: #0f172a; }
+.error-message { margin: 0; color: #fee2e2; background: #7f1d1d; border-radius: 8px; padding: 0.55rem 0.75rem; }
+.text-green { color: #16a34a; }
+.text-blue { color: #2563eb; }
+.text-orange { color: #ea580c; }
+.text-red { color: #dc2626; }
+.card { background: #fff; border-radius: 10px; overflow: hidden; }
+.card-header { background: #0f172a; color: #fff; padding: 0.7rem 1rem; display: flex; justify-content: space-between; align-items: center; }
 .table-wrap { overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-.data-table thead tr { background-color: #f1f5f9; }
-.data-table th { padding: 0.7rem 0.85rem; text-align: left; color: #475569; font-weight: bold; font-size: 0.78rem; }
-.data-table td { padding: 0.7rem 0.85rem; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
-.data-table tbody tr:hover { background-color: #f8fafc; }
-.id-cell { font-family: monospace; font-weight: bold; color: #0ea5e9; font-size: 0.78rem; }
-.machine-tag { background: #e0f2fe; color: #0284c7; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: bold; font-family: monospace; }
-.status-badge { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: bold; }
-.status-pass   { background: #dcfce7; color: #16a34a; }
-.status-fail   { background: #fee2e2; color: #dc2626; }
-.status-review { background: #fef9c3; color: #ca8a04; }
-.defect-list { padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
-.defect-item { display: flex; flex-direction: column; gap: 0.3rem; }
-.defect-top { display: flex; justify-content: space-between; }
-.defect-type { font-size: 0.88rem; font-weight: bold; color: #1e293b; }
-.defect-count { font-size: 0.85rem; font-weight: bold; }
-.defect-bar-bg { height: 8px; background: #f1f5f9; border-radius: 999px; overflow: hidden; }
-.defect-bar-fill { height: 100%; background: #ef4444; border-radius: 999px; transition: width 0.5s; }
-.defect-pct { font-size: 0.75rem; }
-.text-white  { color: white; }
-.text-green  { color: #16a34a; }
-.text-yellow { color: #ca8a04; }
-.text-red    { color: #dc2626; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+.input { border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.45rem 0.6rem; }
+.btn { border: none; border-radius: 6px; padding: 0.42rem 0.72rem; cursor: pointer; }
+.btn-primary { background: #3b82f6; color: #fff; }
+.btn-danger { background: #ef4444; color: #fff; }
+.modal-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: grid; place-items: center; }
+.modal { background: #fff; border-radius: 10px; width: min(560px, 92vw); padding: 1rem; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin: 0.8rem 0; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 </style>

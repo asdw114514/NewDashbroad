@@ -3,108 +3,91 @@
     <header class="header">
       <div class="header-left">
         <button class="back-btn" @click="router.push('/admin')">← 返回</button>
-        <span class="title">🏭 兆豐工業 - 智慧製造戰情室</span>
-        <span class="badge bg-purple">物料管理</span>
+        <span class="title">📦 物料管理</span>
       </div>
       <div class="header-right">
         <div class="time">{{ currentTime }}</div>
-        <div class="supervisor">系統管理員：王大明</div>
+        <div class="api-status" :class="apiStatusClass">API：{{ apiStatus }}</div>
       </div>
     </header>
 
     <main class="main-content">
+      <p v-if="operationError" class="error-message">{{ operationError }}</p>
+      <section class="kpi-grid three">
+        <div class="kpi-card"><div class="kpi-label">總物料種類</div><div class="kpi-value">{{ kpis.total }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">低庫存警示數</div><div class="kpi-value text-orange">{{ kpis.alert }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">庫存正常數</div><div class="kpi-value text-green">{{ kpis.normal }}</div></div>
+      </section>
 
-      <!-- KPI -->
-      <section class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-icon">📦</div>
-          <div class="kpi-info">
-            <div class="kpi-label">料件種類</div>
-            <div class="kpi-value text-white">48</div>
-          </div>
+      <section class="card">
+        <div class="card-header">
+          <span>📋 物料列表</span>
+          <button class="btn btn-primary" @click="showAddModal = true">➕ 新增物料</button>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">⚠️</div>
-          <div class="kpi-info">
-            <div class="kpi-label">低庫存警示</div>
-            <div class="kpi-value text-red">3</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">🔄</div>
-          <div class="kpi-info">
-            <div class="kpi-label">今日領料次數</div>
-            <div class="kpi-value text-cyan">18</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">📥</div>
-          <div class="kpi-info">
-            <div class="kpi-label">今日入庫次數</div>
-            <div class="kpi-value text-green">5</div>
-          </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>物料ID</th>
+                <th>名稱</th>
+                <th>單位</th>
+                <th>目前庫存</th>
+                <th>安全庫存</th>
+                <th>庫存狀態</th>
+                <th>庫存進度</th>
+                <th>最後更新</th>
+                <th>調整數量</th>
+                <th>刪除</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in materials" :key="item.materialId">
+                <td>{{ item.materialId }}</td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.unit }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.minStock }}</td>
+                <td :class="stockState(item).className">{{ stockState(item).label }}</td>
+                <td>
+                  <div class="progress-bg">
+                    <div class="progress-fill" :style="{ width: `${stockRatio(item)}%` }" :class="stockState(item).className"></div>
+                  </div>
+                </td>
+                <td>{{ item.updatedAt || '-' }}</td>
+                <td><button class="btn btn-secondary" @click="openAdjust(item)">調整</button></td>
+                <td><button class="btn btn-danger" @click="deleteMaterial(item.materialId)">🗑️</button></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
-      <div class="bottom-grid">
-
-        <!-- 庫存列表 -->
-        <section class="card">
-          <div class="card-header">
-            <span>📦 料件庫存狀況</span>
-            <input class="search-input" v-model="searchText" placeholder="搜尋料件..." />
+      <div v-if="showAddModal" class="modal-mask" @click.self="showAddModal = false">
+        <div class="modal">
+          <h3>新增物料</h3>
+          <div class="form-grid">
+            <input v-model.trim="newMaterial.materialId" class="input" placeholder="物料ID" />
+            <input v-model.trim="newMaterial.name" class="input" placeholder="名稱" />
+            <input v-model.trim="newMaterial.unit" class="input" placeholder="單位" />
+            <input v-model.number="newMaterial.quantity" type="number" min="0" class="input" placeholder="初始數量" />
+            <input v-model.number="newMaterial.minStock" type="number" min="1" class="input" placeholder="安全庫存" />
           </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>料號</th>
-                  <th>名稱</th>
-                  <th>類別</th>
-                  <th>現有庫存</th>
-                  <th>安全庫存</th>
-                  <th>單位</th>
-                  <th>狀態</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="mat in filteredMaterials" :key="mat.id">
-                  <td class="id-cell">{{ mat.id }}</td>
-                  <td>{{ mat.name }}</td>
-                  <td><span class="cat-tag" :class="mat.catClass">{{ mat.category }}</span></td>
-                  <td :class="mat.stock <= mat.safeStock ? 'text-red fw-bold' : 'text-dark'">{{ mat.stock.toLocaleString() }}</td>
-                  <td class="text-muted-sm">{{ mat.safeStock.toLocaleString() }}</td>
-                  <td class="text-muted-sm">{{ mat.unit }}</td>
-                  <td>
-                    <span class="status-badge" :class="getStockClass(mat.stock, mat.safeStock)">
-                      {{ getStockLabel(mat.stock, mat.safeStock) }}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="modal-actions">
+            <button class="btn" @click="showAddModal = false">取消</button>
+            <button class="btn btn-primary" @click="addMaterial">儲存</button>
           </div>
-        </section>
+        </div>
+      </div>
 
-        <!-- 右側：今日領料記錄 -->
-        <section class="card">
-          <div class="card-header">🔄 今日領料記錄</div>
-          <div class="txn-list">
-            <div class="txn-item" v-for="txn in transactions" :key="txn.id">
-              <div class="txn-left">
-                <span class="txn-time">{{ txn.time }}</span>
-                <span class="txn-name">{{ txn.name }}</span>
-              </div>
-              <div class="txn-right">
-                <span class="txn-qty" :class="txn.type === '領料' ? 'text-red' : 'text-green'">
-                  {{ txn.type === '領料' ? '-' : '+' }}{{ txn.qty }} {{ txn.unit }}
-                </span>
-                <span class="txn-type-badge" :class="txn.type === '領料' ? 'badge-out' : 'badge-in'">{{ txn.type }}</span>
-              </div>
-            </div>
+      <div v-if="showAdjustModal" class="modal-mask" @click.self="showAdjustModal = false">
+        <div class="modal">
+          <h3>調整數量（{{ adjustForm.materialId }}）</h3>
+          <input v-model.number="adjustForm.quantity" type="number" min="0" class="input full" placeholder="新數量" />
+          <div class="modal-actions">
+            <button class="btn" @click="showAdjustModal = false">取消</button>
+            <button class="btn btn-primary" @click="adjustQuantity">更新</button>
           </div>
-        </section>
-
+        </div>
       </div>
     </main>
 
@@ -113,113 +96,182 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavDrawer from '@/components/NavDrawer.vue'
 
+const API_BASE = 'http://localhost:1880'
 const router = useRouter()
+const materials = ref([])
+const showAddModal = ref(false)
+const showAdjustModal = ref(false)
 const currentTime = ref('')
-let timer = null
-const updateTime = () => {
+const apiStatus = ref('檢查中')
+const apiStatusClass = ref('api-warn')
+const operationError = ref('')
+const newMaterial = ref({ materialId: '', name: '', unit: '', quantity: null, minStock: null })
+const adjustForm = ref({ materialId: '', quantity: null })
+
+let timer
+
+const kpis = computed(() => {
+  const total = materials.value.length
+  const alert = materials.value.filter((item) => Number(item.quantity) <= Number(item.minStock)).length
+  const normal = total - alert
+  return { total, alert, normal }
+})
+
+function updateTime() {
   const now = new Date()
   currentTime.value = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`
 }
 
-const searchText = ref('')
+function stockState(item) {
+  const quantity = Number(item.quantity || 0)
+  const minStock = Number(item.minStock || 0)
+  if (quantity <= minStock * 0.5) return { label: '危險', className: 'text-red' }
+  if (quantity <= minStock) return { label: '警示', className: 'text-orange' }
+  return { label: '正常', className: 'text-green' }
+}
 
-const materials = ref([
-  { id: 'MAT-001', name: 'ABS 塑膠粒',   category: '原料', catClass: 'cat-raw',   stock: 1500, safeStock: 500,  unit: 'kg' },
-  { id: 'MAT-002', name: 'PC 塑膠粒',    category: '原料', catClass: 'cat-raw',   stock: 320,  safeStock: 400,  unit: 'kg' },
-  { id: 'MAT-003', name: 'M3 螺絲',      category: '零件', catClass: 'cat-part',  stock: 8500, safeStock: 2000, unit: 'pcs' },
-  { id: 'MAT-004', name: 'M5 螺絲',      category: '零件', catClass: 'cat-part',  stock: 3200, safeStock: 1000, unit: 'pcs' },
-  { id: 'MAT-005', name: '銅嵌件 φ4',   category: '零件', catClass: 'cat-part',  stock: 150,  safeStock: 500,  unit: 'pcs' },
-  { id: 'MAT-006', name: '潤滑油脂',     category: '耗材', catClass: 'cat-cons',  stock: 25,   safeStock: 10,   unit: 'L' },
-  { id: 'MAT-007', name: '包裝紙箱(大)', category: '包材', catClass: 'cat-pack',  stock: 600,  safeStock: 200,  unit: 'pcs' },
-  { id: 'MAT-008', name: '包裝紙箱(小)', category: '包材', catClass: 'cat-pack',  stock: 1200, safeStock: 300,  unit: 'pcs' },
-  { id: 'MAT-009', name: 'PP 塑膠粒',    category: '原料', catClass: 'cat-raw',   stock: 880,  safeStock: 400,  unit: 'kg' },
-  { id: 'MAT-010', name: '彈簧片 A型',   category: '零件', catClass: 'cat-part',  stock: 2400, safeStock: 800,  unit: 'pcs' },
-])
+function stockRatio(item) {
+  const quantity = Number(item.quantity || 0)
+  const max = Math.max(Number(item.minStock || 0) * 2, 1)
+  return Math.min((quantity / max) * 100, 100)
+}
 
-const filteredMaterials = computed(() => {
-  if (!searchText.value) return materials.value
-  return materials.value.filter(m => m.id.includes(searchText.value) || m.name.includes(searchText.value))
+function openAdjust(item) {
+  adjustForm.value = { materialId: item.materialId, quantity: Number(item.quantity) }
+  showAdjustModal.value = true
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
+async function fetchMaterials() {
+  try {
+    const result = await request('/materials')
+    materials.value = Array.isArray(result.data) ? result.data : []
+    apiStatus.value = '正常'
+    apiStatusClass.value = 'api-ok'
+  } catch {
+    materials.value = []
+    apiStatus.value = '異常'
+    apiStatusClass.value = 'api-error'
+  }
+}
+
+async function addMaterial() {
+  operationError.value = ''
+  if (!newMaterial.value.materialId || !newMaterial.value.name || !newMaterial.value.unit || newMaterial.value.quantity === null || !newMaterial.value.minStock) {
+    operationError.value = '請完整填寫物料欄位'
+    return
+  }
+  if (Number(newMaterial.value.quantity) < 0 || Number(newMaterial.value.minStock) <= 0) {
+    operationError.value = '初始數量需 ≥ 0，安全庫存需 > 0'
+    return
+  }
+
+  try {
+    await request('/materials/add', {
+      method: 'POST',
+      body: JSON.stringify(newMaterial.value),
+    })
+
+    showAddModal.value = false
+    newMaterial.value = { materialId: '', name: '', unit: '', quantity: null, minStock: null }
+    await fetchMaterials()
+  } catch {
+    operationError.value = '新增物料失敗'
+  }
+}
+
+async function adjustQuantity() {
+  operationError.value = ''
+  if (!adjustForm.value.materialId || adjustForm.value.quantity === null || Number(adjustForm.value.quantity) < 0) {
+    operationError.value = '調整數量需為 0 以上'
+    return
+  }
+  try {
+    await request('/materials/update', {
+      method: 'POST',
+      body: JSON.stringify(adjustForm.value),
+    })
+    showAdjustModal.value = false
+    await fetchMaterials()
+  } catch {
+    operationError.value = '更新庫存失敗'
+  }
+}
+
+async function deleteMaterial(materialId) {
+  if (!window.confirm(`確定刪除 ${materialId}？`)) return
+  operationError.value = ''
+  try {
+    await request('/materials/delete', {
+      method: 'POST',
+      body: JSON.stringify({ materialId }),
+    })
+    await fetchMaterials()
+  } catch {
+    operationError.value = '刪除物料失敗'
+  }
+}
+
+onMounted(async () => {
+  updateTime()
+  timer = setInterval(updateTime, 1000)
+  await fetchMaterials()
 })
 
-const getStockClass = (stock, safe) => stock <= safe * 0.5 ? 'status-critical' : stock <= safe ? 'status-low' : 'status-ok'
-const getStockLabel = (stock, safe) => stock <= safe * 0.5 ? '嚴重不足' : stock <= safe ? '低庫存' : '正常'
-
-const transactions = ref([
-  { id: 1,  time: '08:12', name: 'ABS 塑膠粒',     qty: 200,  unit: 'kg',  type: '領料' },
-  { id: 2,  time: '08:35', name: 'M3 螺絲',        qty: 500,  unit: 'pcs', type: '領料' },
-  { id: 3,  time: '09:10', name: 'PC 塑膠粒',      qty: 800,  unit: 'kg',  type: '入庫' },
-  { id: 4,  time: '09:45', name: '銅嵌件 φ4',     qty: 100,  unit: 'pcs', type: '領料' },
-  { id: 5,  time: '10:20', name: '包裝紙箱(大)',   qty: 100,  unit: 'pcs', type: '領料' },
-  { id: 6,  time: '10:55', name: 'M5 螺絲',        qty: 1000, unit: 'pcs', type: '入庫' },
-  { id: 7,  time: '11:30', name: 'PP 塑膠粒',      qty: 150,  unit: 'kg',  type: '領料' },
-  { id: 8,  time: '13:00', name: '彈簧片 A型',     qty: 200,  unit: 'pcs', type: '領料' },
-  { id: 9,  time: '13:40', name: '銅嵌件 φ4',     qty: 500,  unit: 'pcs', type: '入庫' },
-  { id: 10, time: '14:15', name: '包裝紙箱(小)',   qty: 200,  unit: 'pcs', type: '領料' },
-])
-
-onMounted(() => { updateTime(); timer = setInterval(updateTime, 1000) })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  clearInterval(timer)
+})
 </script>
 
 <style scoped>
-.dashboard-container { min-height: 100vh; background-color: #475569; font-family: sans-serif; display: flex; flex-direction: column; }
-.header { background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-.header-left { display: flex; align-items: center; gap: 1rem; }
-.title { font-size: 1.5rem; font-weight: bold; }
-.badge { padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.875rem; font-weight: bold; color: white; }
-.bg-purple { background-color: #a855f7; }
-.back-btn { background: #1e293b; color: #94a3b8; border: none; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
-.back-btn:hover { background: #334155; color: white; }
+.dashboard-container { height: 100vh; overflow: hidden; background: #475569; display: flex; flex-direction: column; font-family: sans-serif; }
+.header { flex-shrink: 0; background: #0f172a; color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+.header-left { display: flex; gap: 1rem; align-items: center; }
+.title { font-size: 1.2rem; font-weight: 700; }
+.back-btn { background: #1e293b; color: #cbd5e1; border: 0; border-radius: 6px; padding: 0.4rem 0.8rem; cursor: pointer; }
 .header-right { text-align: right; }
-.time { color: #22d3ee; font-family: monospace; font-size: 1.25rem; }
-.supervisor { font-size: 0.875rem; color: #9ca3af; }
-.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex: 1; }
-.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-.kpi-card { background-color: #1e293b; border-radius: 0.75rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-.kpi-icon { font-size: 2rem; }
-.kpi-label { color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem; }
-.kpi-value { font-size: 2rem; font-weight: bold; }
-.bottom-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; }
-.card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
-.card-header { background-color: #1e293b; color: white; padding: 0.75rem 1.25rem; font-weight: bold; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
-.search-input { background: #334155; border: none; color: white; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; outline: none; }
-.search-input::placeholder { color: #64748b; }
+.time { color: #22d3ee; font-family: monospace; }
+.api-status { font-size: 0.82rem; margin-top: 0.2rem; }
+.api-ok { color: #4ade80; }
+.api-error { color: #f87171; }
+.api-warn { color: #fbbf24; }
+.main-content { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+.kpi-grid { display: grid; gap: 1rem; }
+.kpi-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kpi-card { background: #fff; border-radius: 10px; padding: 1rem; }
+.kpi-label { color: #64748b; font-size: 0.85rem; }
+.kpi-value { font-size: 1.8rem; font-weight: 700; color: #0f172a; }
+.error-message { margin: 0; color: #fee2e2; background: #7f1d1d; border-radius: 8px; padding: 0.55rem 0.75rem; }
+.text-green { color: #16a34a; }
+.text-orange { color: #ea580c; }
+.text-red { color: #dc2626; }
+.card { background: #fff; border-radius: 10px; overflow: hidden; }
+.card-header { background: #0f172a; color: #fff; padding: 0.7rem 1rem; display: flex; justify-content: space-between; align-items: center; }
 .table-wrap { overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-.data-table thead tr { background-color: #f1f5f9; }
-.data-table th { padding: 0.75rem 1rem; text-align: left; color: #475569; font-weight: bold; font-size: 0.8rem; }
-.data-table td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
-.data-table tbody tr:hover { background-color: #f8fafc; }
-.id-cell { font-family: monospace; font-weight: bold; color: #0ea5e9; }
-.cat-tag { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
-.cat-raw  { background: #fef9c3; color: #a16207; }
-.cat-part { background: #dbeafe; color: #1d4ed8; }
-.cat-cons { background: #f3e8ff; color: #7e22ce; }
-.cat-pack { background: #dcfce7; color: #15803d; }
-.status-badge { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: bold; }
-.status-ok       { background: #dcfce7; color: #16a34a; }
-.status-low      { background: #fef9c3; color: #ca8a04; }
-.status-critical { background: #fee2e2; color: #dc2626; }
-.text-dark    { color: #1e293b; }
-.text-muted-sm { color: #94a3b8; font-size: 0.85rem; }
-.fw-bold { font-weight: bold; }
-.txn-list { padding: 0.75rem 1.25rem; display: flex; flex-direction: column; gap: 0; }
-.txn-item { display: flex; justify-content: space-between; align-items: center; padding: 0.7rem 0; border-bottom: 1px solid #f1f5f9; }
-.txn-item:last-child { border-bottom: none; }
-.txn-left { display: flex; flex-direction: column; gap: 0.2rem; }
-.txn-time { font-size: 0.75rem; color: #94a3b8; }
-.txn-name { font-size: 0.88rem; font-weight: bold; color: #1e293b; }
-.txn-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.2rem; }
-.txn-qty { font-size: 0.9rem; font-weight: bold; }
-.txn-type-badge { font-size: 0.72rem; font-weight: bold; padding: 0.15rem 0.5rem; border-radius: 999px; }
-.badge-out { background: #fee2e2; color: #dc2626; }
-.badge-in  { background: #dcfce7; color: #16a34a; }
-.text-white  { color: white; }
-.text-green  { color: #16a34a; }
-.text-cyan   { color: #0891b2; }
-.text-red    { color: #dc2626; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+.progress-bg { width: 130px; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+.progress-fill { height: 100%; }
+.input { border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.45rem 0.6rem; }
+.full { width: 100%; margin: 0.8rem 0; }
+.btn { border: none; border-radius: 6px; padding: 0.42rem 0.72rem; cursor: pointer; }
+.btn-primary { background: #3b82f6; color: #fff; }
+.btn-secondary { background: #64748b; color: #fff; }
+.btn-danger { background: #ef4444; color: #fff; }
+.modal-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: grid; place-items: center; }
+.modal { background: #fff; border-radius: 10px; width: min(560px, 92vw); padding: 1rem; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin: 0.8rem 0; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 </style>

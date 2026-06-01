@@ -3,124 +3,108 @@
     <header class="header">
       <div class="header-left">
         <button class="back-btn" @click="router.push('/admin')">← 返回</button>
-        <span class="title">🏭 兆豐工業 - 智慧製造戰情室</span>
-        <span class="badge bg-blue">生產排程與派工</span>
+        <span class="title">🏭 生產排程</span>
       </div>
       <div class="header-right">
         <div class="time">{{ currentTime }}</div>
-        <div class="supervisor">系統管理員：王大明</div>
+        <div class="api-status" :class="apiStatusClass">API：{{ apiStatus }}</div>
       </div>
     </header>
 
     <main class="main-content">
-
-      <!-- KPI -->
+      <p v-if="operationError" class="error-message">{{ operationError }}</p>
       <section class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-icon">📋</div>
-          <div class="kpi-info">
-            <div class="kpi-label">今日工單數</div>
-            <div class="kpi-value text-white">12</div>
+        <div class="kpi-card"><div class="kpi-label">總工單數</div><div class="kpi-value">{{ kpis.total }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">已完成</div><div class="kpi-value text-green">{{ kpis.done }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">生產中</div><div class="kpi-value text-blue">{{ kpis.running }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">待生產</div><div class="kpi-value text-yellow">{{ kpis.pending }}</div></div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <span>📋 工單列表</span>
+          <div class="actions">
+            <select v-model="filterStatus" class="input small">
+              <option value="">全部狀態</option>
+              <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
+            </select>
+            <button class="btn btn-primary" @click="showAddModal = true">➕ 新增工單</button>
           </div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">✅</div>
-          <div class="kpi-info">
-            <div class="kpi-label">已完成</div>
-            <div class="kpi-value text-green">5</div>
-          </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>工單號</th>
+                <th>產品名稱</th>
+                <th>機台</th>
+                <th>數量</th>
+                <th>開始日期</th>
+                <th>狀態</th>
+                <th>刪除</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in filteredOrders" :key="order.orderId">
+                <td>{{ order.orderId }}</td>
+                <td>{{ order.product }}</td>
+                <td>{{ order.machine }}</td>
+                <td>{{ order.quantity }}</td>
+                <td>{{ order.startDate }}</td>
+                <td>
+                  <select
+                    class="input small"
+                    :value="order.status"
+                    @change="updateOrderStatus(order.orderId, $event.target.value)"
+                  >
+                    <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
+                  </select>
+                </td>
+                <td><button class="btn btn-danger" @click="deleteOrder(order.orderId)">🗑️</button></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">⚙️</div>
-          <div class="kpi-info">
-            <div class="kpi-label">進行中</div>
-            <div class="kpi-value text-cyan">4</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">⏳</div>
-          <div class="kpi-info">
-            <div class="kpi-label">待排程</div>
-            <div class="kpi-value text-yellow">3</div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">📅 甘特圖（示意）</div>
+        <div class="gantt-area">
+          <div class="gantt-row" v-for="row in ganttData" :key="row.machine">
+            <div class="gantt-label">{{ row.machine }}</div>
+            <div class="gantt-track">
+              <div
+                v-for="block in row.blocks"
+                :key="block.label"
+                class="gantt-block"
+                :class="block.type"
+                :style="{ left: `${block.left}%`, width: `${block.width}%` }"
+              >
+                {{ block.label }}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- 主要內容 -->
-      <div class="bottom-grid">
-
-        <!-- 工單列表 -->
-        <section class="card">
-          <div class="card-header">
-            <span>📋 工單排程列表</span>
-            <select class="filter-select" v-model="filterStatus">
-              <option value="">全部</option>
-              <option value="進行中">進行中</option>
-              <option value="待排程">待排程</option>
-              <option value="已完成">已完成</option>
+      <div v-if="showAddModal" class="modal-mask" @click.self="showAddModal = false">
+        <div class="modal">
+          <h3>新增工單</h3>
+          <div class="form-grid">
+            <input v-model.trim="newOrder.orderId" class="input" placeholder="工單號" />
+            <input v-model.trim="newOrder.product" class="input" placeholder="產品名稱" />
+            <input v-model.number="newOrder.quantity" type="number" min="1" class="input" placeholder="數量" />
+            <select v-model="newOrder.machine" class="input">
+              <option disabled value="">選擇機台</option>
+              <option v-for="machine in machineOptions" :key="machine" :value="machine">{{ machine }}</option>
             </select>
+            <input v-model="newOrder.startDate" type="date" class="input" />
           </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>工單編號</th>
-                  <th>產品名稱</th>
-                  <th>指派機台</th>
-                  <th>計劃數量</th>
-                  <th>完成數量</th>
-                  <th>預計完成</th>
-                  <th>狀態</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="order in filteredOrders" :key="order.id">
-                  <td class="id-cell">{{ order.id }}</td>
-                  <td>{{ order.product }}</td>
-                  <td><span class="machine-tag">{{ order.machine }}</span></td>
-                  <td>{{ order.planQty }}</td>
-                  <td>
-                    <span :class="order.doneQty >= order.planQty ? 'text-green' : 'text-cyan'">
-                      {{ order.doneQty }}
-                    </span>
-                  </td>
-                  <td>{{ order.dueDate }}</td>
-                  <td>
-                    <span class="status-badge" :class="order.statusClass">{{ order.status }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="modal-actions">
+            <button class="btn" @click="showAddModal = false">取消</button>
+            <button class="btn btn-primary" @click="addOrder">儲存</button>
           </div>
-        </section>
-
-        <!-- 右側：甘特示意 -->
-        <section class="card">
-          <div class="card-header">📅 今日排程甘特圖（示意）</div>
-          <div class="gantt-area">
-            <div class="gantt-time-header">
-              <span v-for="h in timeSlots" :key="h" class="gantt-time">{{ h }}</span>
-            </div>
-            <div class="gantt-rows">
-              <div class="gantt-row" v-for="row in ganttData" :key="row.machine">
-                <div class="gantt-label">{{ row.machine }}</div>
-                <div class="gantt-track">
-                  <div
-                    class="gantt-block"
-                    v-for="block in row.blocks"
-                    :key="block.id"
-                    :style="{ left: block.left + '%', width: block.width + '%' }"
-                    :class="block.colorClass"
-                    :title="block.label"
-                  >
-                    <span class="block-label">{{ block.label }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
+        </div>
       </div>
     </main>
 
@@ -129,116 +113,172 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavDrawer from '@/components/NavDrawer.vue'
 
+const API_BASE = 'http://localhost:1880'
 const router = useRouter()
 const currentTime = ref('')
-let timer = null
-const updateTime = () => {
+const orders = ref([])
+const filterStatus = ref('')
+const showAddModal = ref(false)
+const apiStatus = ref('檢查中')
+const apiStatusClass = ref('api-warn')
+const operationError = ref('')
+const statusOptions = ['待生產', '生產中', '完成']
+const machineOptions = ['INJ-101', 'INJ-102', 'INJ-103', 'INJ-104', 'INJ-105', 'INJ-106']
+const newOrder = ref({ orderId: '', product: '', quantity: null, machine: '', startDate: '' })
+
+const ganttData = [
+  { machine: 'INJ-101', blocks: [{ label: 'ORD-001', left: 0, width: 28, type: 'done' }, { label: 'ORD-008', left: 34, width: 30, type: 'running' }] },
+  { machine: 'INJ-102', blocks: [{ label: 'ORD-003', left: 8, width: 24, type: 'done' }, { label: 'ORD-010', left: 40, width: 36, type: 'pending' }] },
+  { machine: 'INJ-103', blocks: [{ label: 'ORD-006', left: 18, width: 38, type: 'running' }] },
+]
+
+let timer
+
+const kpis = computed(() => {
+  const total = orders.value.length
+  const done = orders.value.filter((item) => item.status === '完成').length
+  const running = orders.value.filter((item) => item.status === '生產中').length
+  const pending = orders.value.filter((item) => item.status === '待生產').length
+  return { total, done, running, pending }
+})
+
+const filteredOrders = computed(() => {
+  if (!filterStatus.value) return orders.value
+  return orders.value.filter((item) => item.status === filterStatus.value)
+})
+
+function updateTime() {
   const now = new Date()
   currentTime.value = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`
 }
 
-const filterStatus = ref('')
+async function request(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
 
-const orders = ref([
-  { id: 'WO-2026-001', product: '外殼 A型', machine: 'INJ-101', planQty: 500, doneQty: 500, dueDate: '2026-05-13', status: '已完成', statusClass: 'status-done' },
-  { id: 'WO-2026-002', product: '齒輪組 B', machine: 'CNC-201', planQty: 200, doneQty: 120, dueDate: '2026-05-13', status: '進行中', statusClass: 'status-running' },
-  { id: 'WO-2026-003', product: '端蓋 C型', machine: 'INJ-102', planQty: 300, doneQty: 300, dueDate: '2026-05-13', status: '已完成', statusClass: 'status-done' },
-  { id: 'WO-2026-004', product: '支架 D型', machine: 'ASM-301', planQty: 150, doneQty: 80,  dueDate: '2026-05-13', status: '進行中', statusClass: 'status-running' },
-  { id: 'WO-2026-005', product: '底板 E型', machine: 'INJ-103', planQty: 400, doneQty: 0,   dueDate: '2026-05-14', status: '待排程', statusClass: 'status-pending' },
-  { id: 'WO-2026-006', product: '外殼 F型', machine: 'INJ-104', planQty: 250, doneQty: 250, dueDate: '2026-05-13', status: '已完成', statusClass: 'status-done' },
-  { id: 'WO-2026-007', product: '轉子 G型', machine: 'CNC-202', planQty: 100, doneQty: 60,  dueDate: '2026-05-13', status: '進行中', statusClass: 'status-running' },
-  { id: 'WO-2026-008', product: '連接器 H', machine: 'ASM-302', planQty: 600, doneQty: 0,   dueDate: '2026-05-15', status: '待排程', statusClass: 'status-pending' },
-  { id: 'WO-2026-009', product: '蓋板 I型', machine: 'INJ-101', planQty: 350, doneQty: 350, dueDate: '2026-05-12', status: '已完成', statusClass: 'status-done' },
-  { id: 'WO-2026-010', product: '框架 J型', machine: 'CNC-201', planQty: 180, doneQty: 50,  dueDate: '2026-05-14', status: '進行中', statusClass: 'status-running' },
-  { id: 'WO-2026-011', product: '軸承座 K', machine: 'INJ-102', planQty: 220, doneQty: 0,   dueDate: '2026-05-16', status: '待排程', statusClass: 'status-pending' },
-  { id: 'WO-2026-012', product: '護蓋 L型', machine: 'ASM-301', planQty: 130, doneQty: 130, dueDate: '2026-05-13', status: '已完成', statusClass: 'status-done' },
-])
+async function fetchOrders() {
+  try {
+    const result = await request('/orders')
+    orders.value = Array.isArray(result.data) ? result.data : []
+    apiStatus.value = '正常'
+    apiStatusClass.value = 'api-ok'
+  } catch {
+    orders.value = []
+    apiStatus.value = '異常'
+    apiStatusClass.value = 'api-error'
+  }
+}
 
-const filteredOrders = computed(() => {
-  if (!filterStatus.value) return orders.value
-  return orders.value.filter(o => o.status === filterStatus.value)
+async function addOrder() {
+  operationError.value = ''
+  if (!newOrder.value.orderId || !newOrder.value.product || !newOrder.value.quantity || !newOrder.value.machine || !newOrder.value.startDate) {
+    operationError.value = '請完整填寫新增工單欄位'
+    return
+  }
+
+  try {
+    await request('/orders/add', {
+      method: 'POST',
+      body: JSON.stringify({ ...newOrder.value, status: '待生產' }),
+    })
+
+    showAddModal.value = false
+    newOrder.value = { orderId: '', product: '', quantity: null, machine: '', startDate: '' }
+    await fetchOrders()
+  } catch {
+    operationError.value = '新增工單失敗，請稍後再試'
+  }
+}
+
+async function updateOrderStatus(orderId, status) {
+  operationError.value = ''
+  try {
+    await request('/orders/update', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, status }),
+    })
+    await fetchOrders()
+  } catch {
+    operationError.value = '更新工單狀態失敗'
+  }
+}
+
+async function deleteOrder(orderId) {
+  if (!window.confirm(`確定刪除 ${orderId}？`)) return
+  operationError.value = ''
+  try {
+    await request('/orders/delete', {
+      method: 'POST',
+      body: JSON.stringify({ orderId }),
+    })
+    await fetchOrders()
+  } catch {
+    operationError.value = '刪除工單失敗'
+  }
+}
+
+onMounted(async () => {
+  updateTime()
+  timer = setInterval(updateTime, 1000)
+  await fetchOrders()
 })
 
-const timeSlots = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00']
-
-const ganttData = ref([
-  { machine: 'INJ-101', blocks: [
-    { id: 1, label: 'WO-001', left: 0, width: 25, colorClass: 'block-done' },
-    { id: 2, label: 'WO-009', left: 25, width: 20, colorClass: 'block-done' },
-    { id: 3, label: 'WO-013', left: 50, width: 30, colorClass: 'block-running' },
-  ]},
-  { machine: 'INJ-102', blocks: [
-    { id: 1, label: 'WO-003', left: 0, width: 30, colorClass: 'block-done' },
-    { id: 2, label: 'WO-011', left: 55, width: 35, colorClass: 'block-pending' },
-  ]},
-  { machine: 'CNC-201', blocks: [
-    { id: 1, label: 'WO-002', left: 10, width: 40, colorClass: 'block-running' },
-    { id: 2, label: 'WO-010', left: 55, width: 30, colorClass: 'block-running' },
-  ]},
-  { machine: 'ASM-301', blocks: [
-    { id: 1, label: 'WO-004', left: 5, width: 45, colorClass: 'block-running' },
-    { id: 2, label: 'WO-012', left: 60, width: 25, colorClass: 'block-done' },
-  ]},
-])
-
-onMounted(() => { updateTime(); timer = setInterval(updateTime, 1000) })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  clearInterval(timer)
+})
 </script>
 
 <style scoped>
-.dashboard-container { min-height: 100vh; background-color: #475569; font-family: sans-serif; display: flex; flex-direction: column; }
-.header { background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-.header-left { display: flex; align-items: center; gap: 1rem; }
-.title { font-size: 1.5rem; font-weight: bold; }
-.badge { padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.875rem; font-weight: bold; color: white; }
-.bg-blue { background-color: #3b82f6; }
-.back-btn { background: #1e293b; color: #94a3b8; border: none; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
-.back-btn:hover { background: #334155; color: white; }
+.dashboard-container { height: 100vh; overflow: hidden; background: #475569; display: flex; flex-direction: column; font-family: sans-serif; }
+.header { flex-shrink: 0; background: #0f172a; color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+.header-left { display: flex; gap: 1rem; align-items: center; }
+.title { font-size: 1.2rem; font-weight: 700; }
+.back-btn { background: #1e293b; color: #cbd5e1; border: 0; border-radius: 6px; padding: 0.4rem 0.8rem; cursor: pointer; }
 .header-right { text-align: right; }
-.time { color: #22d3ee; font-family: monospace; font-size: 1.25rem; }
-.supervisor { font-size: 0.875rem; color: #9ca3af; }
-.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex: 1; }
-.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-.kpi-card { background-color: #1e293b; border-radius: 0.75rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-.kpi-icon { font-size: 2rem; }
-.kpi-label { color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem; }
-.kpi-value { font-size: 2rem; font-weight: bold; }
-.bottom-grid { display: grid; grid-template-columns: 1fr 420px; gap: 1.5rem; }
-.card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
-.card-header { background-color: #1e293b; color: white; padding: 0.75rem 1.25rem; font-weight: bold; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
-.filter-select { background: #334155; border: none; color: white; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; outline: none; cursor: pointer; }
-.table-wrap { overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-.data-table thead tr { background-color: #f1f5f9; }
-.data-table th { padding: 0.75rem 1rem; text-align: left; color: #475569; font-weight: bold; font-size: 0.8rem; }
-.data-table td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
-.data-table tbody tr:hover { background-color: #f8fafc; }
-.id-cell { font-family: monospace; font-weight: bold; color: #0ea5e9; font-size: 0.8rem; }
-.machine-tag { background: #e0f2fe; color: #0284c7; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; font-weight: bold; font-family: monospace; }
-.status-badge { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: bold; }
-.status-done    { background: #dcfce7; color: #16a34a; }
-.status-running { background: #dbeafe; color: #2563eb; }
-.status-pending { background: #fef9c3; color: #ca8a04; }
-.text-white  { color: white; }
-.text-green  { color: #16a34a; }
-.text-cyan   { color: #0891b2; }
+.time { color: #22d3ee; font-family: monospace; }
+.api-status { font-size: 0.82rem; margin-top: 0.2rem; }
+.api-ok { color: #4ade80; }
+.api-error { color: #f87171; }
+.api-warn { color: #fbbf24; }
+.main-content { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+.kpi-card { background: #fff; border-radius: 10px; padding: 1rem; }
+.kpi-label { color: #64748b; font-size: 0.85rem; }
+.kpi-value { font-size: 1.8rem; font-weight: 700; color: #0f172a; }
+.error-message { margin: 0; color: #fee2e2; background: #7f1d1d; border-radius: 8px; padding: 0.55rem 0.75rem; }
+.text-green { color: #16a34a; }
+.text-blue { color: #2563eb; }
 .text-yellow { color: #ca8a04; }
-
-/* 甘特圖 */
-.gantt-area { padding: 1rem 1.25rem; }
-.gantt-time-header { display: flex; justify-content: space-between; padding: 0 0 0.5rem 80px; }
-.gantt-time { font-size: 0.7rem; color: #94a3b8; }
-.gantt-rows { display: flex; flex-direction: column; gap: 0.75rem; }
-.gantt-row { display: flex; align-items: center; gap: 0.75rem; }
-.gantt-label { width: 72px; font-size: 0.78rem; font-weight: bold; color: #0ea5e9; font-family: monospace; flex-shrink: 0; }
-.gantt-track { flex: 1; height: 32px; background: #f1f5f9; border-radius: 4px; position: relative; overflow: hidden; }
-.gantt-block { position: absolute; top: 3px; height: 26px; border-radius: 4px; display: flex; align-items: center; padding: 0 0.4rem; overflow: hidden; }
-.block-label { font-size: 0.7rem; font-weight: bold; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.block-done    { background-color: #22c55e; }
-.block-running { background-color: #3b82f6; }
-.block-pending { background-color: #eab308; }
+.card { background: #fff; border-radius: 10px; overflow: hidden; }
+.card-header { background: #0f172a; color: #fff; padding: 0.7rem 1rem; display: flex; justify-content: space-between; align-items: center; }
+.actions { display: flex; gap: 0.5rem; align-items: center; }
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+.input { border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.45rem 0.6rem; }
+.small { min-width: 110px; }
+.btn { border: none; border-radius: 6px; padding: 0.42rem 0.72rem; cursor: pointer; }
+.btn-primary { background: #3b82f6; color: #fff; }
+.btn-danger { background: #ef4444; color: #fff; }
+.gantt-area { padding: 0.9rem; display: flex; flex-direction: column; gap: 0.7rem; }
+.gantt-row { display: flex; gap: 0.6rem; align-items: center; }
+.gantt-label { width: 70px; font-size: 0.8rem; color: #334155; }
+.gantt-track { flex: 1; height: 30px; background: #e2e8f0; border-radius: 6px; position: relative; }
+.gantt-block { position: absolute; top: 3px; height: 24px; border-radius: 4px; color: #fff; font-size: 0.72rem; display: flex; align-items: center; padding: 0 0.35rem; }
+.gantt-block.done { background: #22c55e; }
+.gantt-block.running { background: #3b82f6; }
+.gantt-block.pending { background: #f59e0b; }
+.modal-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: grid; place-items: center; }
+.modal { background: #fff; border-radius: 10px; width: min(560px, 92vw); padding: 1rem; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin: 0.8rem 0; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 </style>

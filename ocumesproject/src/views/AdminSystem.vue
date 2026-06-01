@@ -3,106 +3,107 @@
     <header class="header">
       <div class="header-left">
         <button class="back-btn" @click="router.push('/admin')">← 返回</button>
-        <span class="title">🏭 兆豐工業 - 智慧製造戰情室</span>
-        <span class="badge bg-red">權限與系統維護</span>
+        <span class="title">⚙️ 系統維護</span>
       </div>
       <div class="header-right">
         <div class="time">{{ currentTime }}</div>
-        <div class="supervisor">系統管理員：王大明</div>
+        <div class="api-status" :class="apiStatusClass">API：{{ apiStatus }}</div>
       </div>
     </header>
 
     <main class="main-content">
-
-      <!-- KPI -->
-      <section class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-icon">👤</div>
-          <div class="kpi-info">
-            <div class="kpi-label">系統帳號數</div>
-            <div class="kpi-value text-white">12</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">🟢</div>
-          <div class="kpi-info">
-            <div class="kpi-label">目前在線</div>
-            <div class="kpi-value text-green">4</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">🔒</div>
-          <div class="kpi-info">
-            <div class="kpi-label">停用帳號</div>
-            <div class="kpi-value text-red">2</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">📝</div>
-          <div class="kpi-info">
-            <div class="kpi-label">今日操作日誌</div>
-            <div class="kpi-value text-cyan">38</div>
-          </div>
+      <section class="card role-card">
+        <div class="role-row">
+          <label for="roleSwitcher">目前登入身份</label>
+          <select id="roleSwitcher" v-model="currentIdentity" class="input small">
+            <option value="admin">admin</option>
+            <option value="operator">operator</option>
+          </select>
+          <span v-if="currentIdentity === 'operator'" class="hint">目前模擬使用者：{{ operatorUserId || '無 operator 帳號' }}</span>
         </div>
       </section>
 
-      <div class="bottom-grid">
+      <section class="kpi-grid two">
+        <div class="kpi-card"><div class="kpi-label">管理員人數</div><div class="kpi-value text-blue">{{ adminCount }}</div></div>
+        <div class="kpi-card"><div class="kpi-label">一般員工人數</div><div class="kpi-value text-green">{{ operatorCount }}</div></div>
+      </section>
+      <p v-if="operationError" class="error-message">{{ operationError }}</p>
 
-        <!-- 帳號管理 -->
-        <section class="card">
-          <div class="card-header">
-            <span>👤 帳號管理</span>
-            <select class="filter-select" v-model="filterRole">
-              <option value="">全部角色</option>
-              <option value="系統管理員">系統管理員</option>
-              <option value="現場主管">現場主管</option>
-              <option value="操作員">操作員</option>
-              <option value="品管人員">品管人員</option>
+      <section class="card">
+        <div class="card-header">
+          <span>👥 使用者列表</span>
+          <button v-if="isAdmin" class="btn btn-primary" @click="openAddModal">➕ 新增使用者</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>使用者ID</th>
+                <th>姓名</th>
+                <th>角色</th>
+                <th>最後更新</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="user in visibleUsers" :key="user.userId">
+                <td>{{ user.userId }}</td>
+                <td>{{ user.name }}</td>
+                <td>
+                  <span class="badge" :class="user.role === 'admin' ? 'badge-admin' : 'badge-operator'">
+                    {{ user.role }}
+                  </span>
+                </td>
+                <td>{{ user.updatedAt || '-' }}</td>
+                <td>
+                  <button class="btn btn-secondary" @click="openEditModal(user)">
+                    {{ isAdmin ? '✏️ 編輯' : '✏️ 編輯個人資料' }}
+                  </button>
+                  <button v-if="isAdmin" class="btn btn-danger" @click="deleteUser(user)">🗑️ 刪除</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div v-if="showAddModal" class="modal-mask" @click.self="showAddModal = false">
+        <div class="modal">
+          <h3>新增使用者</h3>
+          <div class="form-grid">
+            <input v-model.trim="addForm.userId" class="input" placeholder="使用者ID" />
+            <input v-model.trim="addForm.name" class="input" placeholder="姓名" />
+            <select v-model="addForm.role" class="input">
+              <option value="admin">admin</option>
+              <option value="operator">operator</option>
             </select>
+            <input v-model="addForm.password" class="input" type="password" placeholder="初始密碼" />
           </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>帳號</th>
-                  <th>姓名</th>
-                  <th>角色</th>
-                  <th>部門</th>
-                  <th>最後登入</th>
-                  <th>狀態</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="user in filteredUsers" :key="user.id">
-                  <td class="id-cell">{{ user.account }}</td>
-                  <td>{{ user.name }}</td>
-                  <td><span class="role-tag" :class="user.roleClass">{{ user.role }}</span></td>
-                  <td class="text-muted-sm">{{ user.dept }}</td>
-                  <td class="text-muted-sm">{{ user.lastLogin }}</td>
-                  <td>
-                    <span class="status-badge" :class="user.statusClass">{{ user.status }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="modal-actions">
+            <button class="btn" @click="showAddModal = false">取消</button>
+            <button class="btn btn-primary" @click="addUser">儲存</button>
           </div>
-        </section>
+        </div>
+      </div>
 
-        <!-- 右側：系統操作日誌 -->
-        <section class="card">
-          <div class="card-header">📝 系統操作日誌</div>
-          <div class="log-list">
-            <div class="log-item" v-for="log in logs" :key="log.id">
-              <div class="log-time">{{ log.time }}</div>
-              <div class="log-content">
-                <span class="log-user">{{ log.user }}</span>
-                <span class="log-action" :class="log.actionClass">{{ log.action }}</span>
-              </div>
-              <div class="log-detail">{{ log.detail }}</div>
-            </div>
+      <div v-if="showEditModal" class="modal-mask" @click.self="showEditModal = false">
+        <div class="modal">
+          <h3>編輯使用者</h3>
+          <div class="form-grid">
+            <input v-model="editForm.userId" class="input" disabled />
+            <input v-model.trim="editForm.name" class="input" placeholder="姓名" />
+            <select v-if="isAdmin" v-model="editForm.role" class="input">
+              <option value="admin">admin</option>
+              <option value="operator">operator</option>
+            </select>
+            <input v-model="editForm.password" class="input" type="password" placeholder="新密碼（可留空）" />
           </div>
-        </section>
-
+          <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+          <div class="modal-actions">
+            <button class="btn" @click="showEditModal = false">取消</button>
+            <button class="btn btn-primary" @click="updateUser">更新</button>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -111,109 +112,202 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavDrawer from '@/components/NavDrawer.vue'
 
+const API_BASE = 'http://localhost:1880'
 const router = useRouter()
+const users = ref([])
+const currentIdentity = ref('admin')
+const showAddModal = ref(false)
+const showEditModal = ref(false)
 const currentTime = ref('')
-let timer = null
-const updateTime = () => {
+const apiStatus = ref('檢查中')
+const apiStatusClass = ref('api-warn')
+const errorMessage = ref('')
+const operationError = ref('')
+const addForm = ref({ userId: '', name: '', role: 'operator', password: '' })
+const editForm = ref({ userId: '', name: '', role: 'operator', password: '' })
+
+let timer
+
+const isAdmin = computed(() => currentIdentity.value === 'admin')
+const adminCount = computed(() => users.value.filter((item) => item.role === 'admin').length)
+const operatorCount = computed(() => users.value.filter((item) => item.role === 'operator').length)
+const operatorUserId = computed(() => users.value.find((item) => item.role === 'operator')?.userId || '')
+const visibleUsers = computed(() => {
+  if (isAdmin.value) return users.value
+  return users.value.filter((item) => item.userId === operatorUserId.value)
+})
+
+function updateTime() {
   const now = new Date()
   currentTime.value = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`
 }
 
-const filterRole = ref('')
+async function request(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
 
-const users = ref([
-  { id: 1,  account: 'admin',    name: '王大明', role: '系統管理員', roleClass: 'role-admin',   dept: '資訊部', lastLogin: '2026-05-13 08:01', status: '在線',   statusClass: 'status-online' },
-  { id: 2,  account: 'chen.mg',  name: '陳志明', role: '現場主管',   roleClass: 'role-manager', dept: '生產部', lastLogin: '2026-05-13 07:55', status: '在線',   statusClass: 'status-online' },
-  { id: 3,  account: 'lin.op1',  name: '林小芳', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-13 08:10', status: '在線',   statusClass: 'status-online' },
-  { id: 4,  account: 'wu.qc',    name: '吳建國', role: '品管人員',   roleClass: 'role-qc',      dept: '品管部', lastLogin: '2026-05-13 08:30', status: '在線',   statusClass: 'status-online' },
-  { id: 5,  account: 'huang.op', name: '黃美麗', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-12 17:30', status: '離線',   statusClass: 'status-offline' },
-  { id: 6,  account: 'chou.mg',  name: '周俊賢', role: '現場主管',   roleClass: 'role-manager', dept: '品管部', lastLogin: '2026-05-12 16:45', status: '離線',   statusClass: 'status-offline' },
-  { id: 7,  account: 'liao.op',  name: '廖文雄', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-10 09:20', status: '停用',   statusClass: 'status-disabled' },
-  { id: 8,  account: 'tsai.op',  name: '蔡雅惠', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-08 14:15', status: '停用',   statusClass: 'status-disabled' },
-  { id: 9,  account: 'hsu.qc',   name: '許志豪', role: '品管人員',   roleClass: 'role-qc',      dept: '品管部', lastLogin: '2026-05-12 11:00', status: '離線',   statusClass: 'status-offline' },
-  { id: 10, account: 'chang.op', name: '張淑娟', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-11 18:00', status: '離線',   statusClass: 'status-offline' },
-])
+async function fetchUsers() {
+  try {
+    const result = await request('/users')
+    users.value = Array.isArray(result.data) ? result.data : []
+    apiStatus.value = '正常'
+    apiStatusClass.value = 'api-ok'
+  } catch {
+    users.value = []
+    apiStatus.value = '異常'
+    apiStatusClass.value = 'api-error'
+  }
+}
 
-const filteredUsers = computed(() => {
-  if (!filterRole.value) return users.value
-  return users.value.filter(u => u.role === filterRole.value)
+function openAddModal() {
+  showAddModal.value = true
+  errorMessage.value = ''
+}
+
+function openEditModal(user) {
+  if (!isAdmin.value && user.userId !== operatorUserId.value) return
+  errorMessage.value = ''
+  editForm.value = { userId: user.userId, name: user.name, role: user.role, password: '' }
+  showEditModal.value = true
+}
+
+async function addUser() {
+  if (!addForm.value.userId || !addForm.value.name || !addForm.value.password) return
+  operationError.value = ''
+  try {
+    await request('/users/add', {
+      method: 'POST',
+      body: JSON.stringify(addForm.value),
+    })
+    showAddModal.value = false
+    addForm.value = { userId: '', name: '', role: 'operator', password: '' }
+    await fetchUsers()
+  } catch {
+    operationError.value = '新增失敗，請稍後再試'
+  }
+}
+
+async function updateUser() {
+  errorMessage.value = ''
+  operationError.value = ''
+
+  if (!isAdmin.value) {
+    editForm.value.role = users.value.find((item) => item.userId === editForm.value.userId)?.role || 'operator'
+  }
+
+  if (
+    isAdmin.value
+    && editForm.value.role !== 'admin'
+    && users.value.find((item) => item.userId === editForm.value.userId)?.role === 'admin'
+    && adminCount.value <= 1
+  ) {
+    errorMessage.value = '至少需保留一位 admin'
+    window.alert(errorMessage.value)
+    return
+  }
+
+  const payload = {
+    userId: editForm.value.userId,
+    name: editForm.value.name,
+    role: editForm.value.role,
+  }
+
+  if (editForm.value.password) payload.password = editForm.value.password
+
+  try {
+    await request('/users/update', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+    showEditModal.value = false
+    await fetchUsers()
+  } catch {
+    operationError.value = '更新失敗，請稍後再試'
+  }
+}
+
+async function deleteUser(user) {
+  errorMessage.value = ''
+  operationError.value = ''
+  if (user.role === 'admin' && adminCount.value <= 1) {
+    errorMessage.value = '至少需保留一位 admin'
+    window.alert(errorMessage.value)
+    return
+  }
+  if (!window.confirm(`確定刪除 ${user.userId}？`)) return
+
+  try {
+    await request('/users/delete', {
+      method: 'POST',
+      body: JSON.stringify({ userId: user.userId }),
+    })
+    await fetchUsers()
+  } catch {
+    operationError.value = '刪除失敗，請稍後再試'
+  }
+}
+
+onMounted(async () => {
+  updateTime()
+  timer = setInterval(updateTime, 1000)
+  await fetchUsers()
 })
 
-const logs = ref([
-  { id: 1,  time: '08:01', user: 'admin',    action: '登入',   actionClass: 'action-login',  detail: '系統管理員登入' },
-  { id: 2,  time: '08:05', user: 'admin',    action: '修改',   actionClass: 'action-edit',   detail: '修改 INJ-101 保養週期參數' },
-  { id: 3,  time: '08:10', user: 'lin.op1',  action: '登入',   actionClass: 'action-login',  detail: '操作員登入' },
-  { id: 4,  time: '08:15', user: 'chen.mg',  action: '審核',   actionClass: 'action-approve',detail: '審核工單 WO-2026-004' },
-  { id: 5,  time: '08:30', user: 'wu.qc',    action: '登入',   actionClass: 'action-login',  detail: '品管人員登入' },
-  { id: 6,  time: '08:45', user: 'wu.qc',    action: '新增',   actionClass: 'action-add',    detail: '新增檢驗記錄 LOT-20260513-007' },
-  { id: 7,  time: '09:10', user: 'admin',    action: '新增',   actionClass: 'action-add',    detail: '新增帳號 hsu.qc' },
-  { id: 8,  time: '09:30', user: 'lin.op1',  action: '修改',   actionClass: 'action-edit',   detail: '更新生產數量 WO-2026-002' },
-  { id: 9,  time: '10:00', user: 'chen.mg',  action: '刪除',   actionClass: 'action-delete', detail: '刪除已逾期工單 WO-2026-000' },
-  { id: 10, time: '10:25', user: 'admin',    action: '停用',   actionClass: 'action-delete', detail: '停用帳號 liao.op' },
-])
-
-onMounted(() => { updateTime(); timer = setInterval(updateTime, 1000) })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  clearInterval(timer)
+})
 </script>
 
 <style scoped>
-.dashboard-container { min-height: 100vh; background-color: #475569; font-family: sans-serif; display: flex; flex-direction: column; }
-.header { background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-.header-left { display: flex; align-items: center; gap: 1rem; }
-.title { font-size: 1.5rem; font-weight: bold; }
-.badge { padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.875rem; font-weight: bold; color: white; }
-.bg-red { background-color: #ef4444; }
-.back-btn { background: #1e293b; color: #94a3b8; border: none; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
-.back-btn:hover { background: #334155; color: white; }
+.dashboard-container { height: 100vh; overflow: hidden; background: #475569; display: flex; flex-direction: column; font-family: sans-serif; }
+.header { flex-shrink: 0; background: #0f172a; color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+.header-left { display: flex; gap: 1rem; align-items: center; }
+.title { font-size: 1.2rem; font-weight: 700; }
+.back-btn { background: #1e293b; color: #cbd5e1; border: 0; border-radius: 6px; padding: 0.4rem 0.8rem; cursor: pointer; }
 .header-right { text-align: right; }
-.time { color: #22d3ee; font-family: monospace; font-size: 1.25rem; }
-.supervisor { font-size: 0.875rem; color: #9ca3af; }
-.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex: 1; }
-.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
-.kpi-card { background-color: #1e293b; border-radius: 0.75rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-.kpi-icon { font-size: 2rem; }
-.kpi-label { color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem; }
-.kpi-value { font-size: 2rem; font-weight: bold; }
-.bottom-grid { display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; }
-.card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
-.card-header { background-color: #1e293b; color: white; padding: 0.75rem 1.25rem; font-weight: bold; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
-.filter-select { background: #334155; border: none; color: white; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; outline: none; cursor: pointer; }
-.table-wrap { overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-.data-table thead tr { background-color: #f1f5f9; }
-.data-table th { padding: 0.75rem 1rem; text-align: left; color: #475569; font-weight: bold; font-size: 0.8rem; }
-.data-table td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
-.data-table tbody tr:hover { background-color: #f8fafc; }
-.id-cell { font-family: monospace; font-weight: bold; color: #0ea5e9; }
-.role-tag { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
-.role-admin   { background: #fee2e2; color: #dc2626; }
-.role-manager { background: #dbeafe; color: #1d4ed8; }
-.role-op      { background: #f0fdf4; color: #16a34a; }
-.role-qc      { background: #faf5ff; color: #7e22ce; }
-.status-badge { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: bold; }
-.status-online   { background: #dcfce7; color: #16a34a; }
-.status-offline  { background: #f1f5f9; color: #64748b; }
-.status-disabled { background: #fee2e2; color: #dc2626; }
-.text-muted-sm { color: #94a3b8; font-size: 0.85rem; }
-.log-list { padding: 0.75rem 1.25rem; display: flex; flex-direction: column; gap: 0; overflow-y: auto; max-height: 500px; }
-.log-item { padding: 0.65rem 0; border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 0.2rem; }
-.log-item:last-child { border-bottom: none; }
-.log-time { font-size: 0.72rem; color: #94a3b8; font-family: monospace; }
-.log-content { display: flex; align-items: center; gap: 0.5rem; }
-.log-user { font-size: 0.82rem; font-weight: bold; color: #0ea5e9; font-family: monospace; }
-.log-action { font-size: 0.75rem; font-weight: bold; padding: 0.1rem 0.4rem; border-radius: 4px; }
-.action-login   { background: #dcfce7; color: #16a34a; }
-.action-edit    { background: #dbeafe; color: #1d4ed8; }
-.action-add     { background: #f3e8ff; color: #7e22ce; }
-.action-approve { background: #fef9c3; color: #a16207; }
-.action-delete  { background: #fee2e2; color: #dc2626; }
-.log-detail { font-size: 0.8rem; color: #64748b; }
-.text-white { color: white; }
+.time { color: #22d3ee; font-family: monospace; }
+.api-status { font-size: 0.82rem; margin-top: 0.2rem; }
+.api-ok { color: #4ade80; }
+.api-error { color: #f87171; }
+.api-warn { color: #fbbf24; }
+.main-content { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+.card { background: #fff; border-radius: 10px; overflow: hidden; }
+.role-card { padding: 0.9rem 1rem; }
+.role-row { display: flex; align-items: center; gap: 0.7rem; }
+.hint { color: #64748b; font-size: 0.85rem; }
+.kpi-grid { display: grid; gap: 1rem; }
+.kpi-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kpi-card { background: #fff; border-radius: 10px; padding: 1rem; }
+.kpi-label { color: #64748b; font-size: 0.85rem; }
+.kpi-value { font-size: 1.8rem; font-weight: 700; color: #0f172a; }
+.error-message { margin: 0; color: #fee2e2; background: #7f1d1d; border-radius: 8px; padding: 0.55rem 0.75rem; }
 .text-green { color: #16a34a; }
-.text-cyan  { color: #0891b2; }
-.text-red   { color: #dc2626; }
+.text-blue { color: #2563eb; }
+.card-header { background: #0f172a; color: #fff; padding: 0.7rem 1rem; display: flex; justify-content: space-between; align-items: center; }
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+.badge { border-radius: 999px; padding: 0.2rem 0.55rem; font-size: 0.78rem; font-weight: 700; }
+.badge-admin { background: #dbeafe; color: #1d4ed8; }
+.badge-operator { background: #dcfce7; color: #166534; }
+.input { border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.45rem 0.6rem; }
+.small { min-width: 130px; }
+.btn { border: none; border-radius: 6px; padding: 0.42rem 0.72rem; cursor: pointer; }
+.btn-primary { background: #3b82f6; color: #fff; }
+.btn-secondary { background: #64748b; color: #fff; }
+.btn-danger { background: #ef4444; color: #fff; margin-left: 0.45rem; }
+.error { margin-top: 0.5rem; color: #dc2626; }
+.modal-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); display: grid; place-items: center; }
+.modal { background: #fff; border-radius: 10px; width: min(560px, 92vw); padding: 1rem; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin: 0.8rem 0; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 </style>

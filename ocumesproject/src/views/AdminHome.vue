@@ -159,7 +159,8 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard-container {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background-color: #475569;
   color: #1e293b;
   font-family: sans-serif;
@@ -169,6 +170,7 @@ onUnmounted(() => {
 
 /* Header */
 .header {
+  flex-shrink: 0;
   background-color: #0f172a;
   color: white;
   padding: 1rem 1.5rem;
@@ -193,6 +195,8 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 1.5rem;
   flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* 歡迎橫幅 */
