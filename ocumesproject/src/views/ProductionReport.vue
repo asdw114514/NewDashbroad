@@ -332,8 +332,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.dashboard-container { min-height: 100vh; background-color: #475569; color: #1e293b; font-family: sans-serif; display: flex; flex-direction: column; }
-.header { background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+.dashboard-container { height: 100vh; overflow: hidden; background-color: #475569; color: #1e293b; font-family: sans-serif; display: flex; flex-direction: column; }
+.header {
+  flex-shrink: 0;
+  background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 .header-left { display: flex; align-items: center; gap: 1rem; }
 .title { font-size: 1.5rem; font-weight: bold; }
 .badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; font-weight: bold; color: white; }
@@ -341,7 +343,8 @@ onUnmounted(() => {
 .header-right { text-align: right; }
 .time { color: #22d3ee; font-family: monospace; font-size: 1.25rem; }
 .supervisor { font-size: 0.875rem; color: #9ca3af; }
-.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex: 1; overflow: hidden; }
+.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex: 1; overflow-y: auto;
+  min-height: 0; }
 .card { background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 .card-header { padding: 1rem 1.5rem; font-weight: bold; }
 .card-header.dark { background-color: #1e293b; color: white; }
