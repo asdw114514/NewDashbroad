@@ -1,6 +1,6 @@
 <template>
   <div class="dashboard-container">
-    
+
     <header class="header">
       <div class="header-left">
         <span class="title">🏭 兆豐工業 - 智慧製造戰情室</span>
@@ -13,7 +13,16 @@
     </header>
 
     <main class="main-content">
-      
+
+      <!-- API 狀態列 -->
+      <div class="api-bar">
+        <span :class="apiConnected ? 'api-ok' : 'api-err'">
+          {{ apiConnected ? '🟢 API 連線正常' : '🔴 API 連線失敗（顯示預設數據）' }}
+        </span>
+        <span class="api-time">最後更新：{{ updatedAt }}</span>
+      </div>
+
+      <!-- KPI -->
       <section class="kpi-grid">
         <div class="card kpi-card" v-for="kpi in esgKpis" :key="kpi.label">
           <div class="kpi-icon-wrapper" :class="kpi.colorClass">
@@ -28,12 +37,12 @@
         </div>
       </section>
 
+      <!-- 圖表 -->
       <section class="chart-grid">
-        
         <div class="card chart-card">
           <div class="card-header dark flex-between">
-            <span>⚡ 全廠用電負載趨勢 (今日 vs 昨日)</span>
-            <span class="text-sm text-cyan">目前負載率：82%</span>
+            <span>⚡ 全廠用電負載趨勢（今日每小時）</span>
+            <span class="text-sm text-cyan">太陽能佔比：{{ solarPercent }}%</span>
           </div>
           <div class="card-body chart-body">
             <div ref="powerChartRef" class="echarts-container"></div>
@@ -48,6 +57,7 @@
         </div>
       </section>
 
+      <!-- 高耗能設備 -->
       <section class="bottom-section">
         <div class="card w-full">
           <div class="card-header bg-slate-100 font-bold text-dark">
@@ -58,12 +68,12 @@
               <div class="hog-item" v-for="(machine, index) in topConsumers" :key="machine.id">
                 <div class="hog-info">
                   <span class="hog-rank">#{{ index + 1 }}</span>
-                  <span class="hog-name">{{ machine.id }} ({{ machine.name }})</span>
-                  <span class="hog-power text-orange">{{ machine.currentPower }} kW</span>
+                  <span class="hog-name">{{ machine.name }}</span>
+                  <span class="hog-power text-orange">{{ machine.kwh }} kWh</span>
                 </div>
                 <div class="progress-container">
-                  <div 
-                    class="progress-bar striped-bg" 
+                  <div
+                    class="progress-bar striped-bg"
                     :style="{ width: machine.usagePercent + '%', backgroundColor: getPowerColor(machine.usagePercent) }"
                   ></div>
                 </div>
@@ -72,155 +82,187 @@
           </div>
         </div>
       </section>
-      <NavDrawer />
+
     </main>
+    <NavDrawer />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import NavDrawer from '@/components/NavDrawer.vue'
-// --- 系統時間 ---
-const currentTime = ref('');
-let timeTimer = null;
+
+const API_URL      = 'http://localhost:1880/energy'
+const POLL_INTERVAL = 60000 // 每分鐘更新
+
+// 時間
+const currentTime = ref('')
+let timeTimer = null
 const updateTime = () => {
-  const now = new Date();
-  const dateObj = now.toISOString().split('T')[0];
-  const timeObj = now.toTimeString().split(' ')[0];
-  currentTime.value = `${dateObj} ${timeObj}`;
-};
+  const now = new Date()
+  currentTime.value = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`
+}
 
-// --- KPI 數據 ---
-const esgKpis = ref([
-  { label: '今日累積用電量', value: '12,450', unit: 'kWh', icon: '⚡', colorClass: 'icon-bg-blue' },
-  { label: '預估碳排放當量', value: '6.24', unit: 'tCO2e', icon: '☁️', colorClass: 'icon-bg-gray' },
-  { label: '製程回收水用量', value: '450', unit: '噸', icon: '💧', colorClass: 'icon-bg-cyan' },
-  { label: '太陽能發電佔比', value: '12.5', unit: '%', icon: '☀️', colorClass: 'icon-bg-green' }
-]);
+// API 狀態
+const apiConnected = ref(false)
+const updatedAt    = ref('--')
 
-// --- 高耗能設備數據 ---
-const topConsumers = ref([
-  { id: 'INJ-101', name: '射出成型機',  currentPower: 450, usagePercent: 92 },
-  { id: 'INJ-102', name: '射出成型機',  currentPower: 380, usagePercent: 78 },
-  { id: 'INJ-103', name: '射出成型機',  currentPower: 310, usagePercent: 65 }
-])
+// 原始 API 資料
+const energyData = ref(null)
+
+// KPI 計算
+const solarPercent = computed(() => {
+  if (!energyData.value) return '--'
+  return ((energyData.value.solarKwh / energyData.value.totalKwh) * 100).toFixed(1)
+})
+
+const esgKpis = computed(() => {
+  const d = energyData.value
+  return [
+    { label: '今日累積用電量', value: d ? d.totalKwh.toLocaleString() : '12,450', unit: 'kWh',   icon: '⚡', colorClass: 'icon-bg-blue'  },
+    { label: '預估碳排放當量', value: d ? d.carbonTon : '6.24',                   unit: 'tCO2e', icon: '☁️', colorClass: 'icon-bg-gray'  },
+    { label: '製程回收水用量', value: d ? d.waterTon : '450',                      unit: '噸',    icon: '💧', colorClass: 'icon-bg-cyan'  },
+    { label: '太陽能發電佔比', value: d ? solarPercent.value : '12.5',             unit: '%',     icon: '☀️', colorClass: 'icon-bg-green' },
+  ]
+})
+
+// 高耗能設備（API machines + 計算佔比）
+const topConsumers = computed(() => {
+  if (!energyData.value?.machines) return [
+    { name: '射出成型機 A', kwh: 450, usagePercent: 92 },
+    { name: '射出成型機 B', kwh: 380, usagePercent: 78 },
+    { name: 'CNC 加工機 A', kwh: 310, usagePercent: 65 },
+  ]
+  const machines = energyData.value.machines
+  const maxKwh   = Math.max(...machines.map(m => m.kwh))
+  return machines.map(m => ({
+    name:         m.name,
+    kwh:          m.kwh,
+    usagePercent: Math.round((m.kwh / maxKwh) * 100)
+  }))
+})
 
 const getPowerColor = (percent) => {
-  if (percent >= 90) return '#ef4444'; // 超載警告紅
-  if (percent >= 75) return '#f97316'; // 偏高橘
-  return '#10b981'; // 正常綠
-};
+  if (percent >= 90) return '#ef4444'
+  if (percent >= 75) return '#f97316'
+  return '#10b981'
+}
 
-// --- ECharts 圖表實體 ---
-const powerChartRef = ref(null);
-const carbonPieRef = ref(null);
-let powerChart = null;
-let carbonPie = null;
+// ECharts
+const powerChartRef = ref(null)
+const carbonPieRef  = ref(null)
+let powerChart = null
+let carbonPie  = null
 
-// 初始化圖表
 const initCharts = () => {
-  if (typeof window.echarts === 'undefined') {
-    console.error('ECharts CDN 未載入');
-    return;
-  }
+  if (typeof window.echarts === 'undefined') return
 
-  // 1. 繪製用電負載趨勢圖 (雙折線/面積圖)
   if (powerChartRef.value) {
-    powerChart = window.echarts.init(powerChartRef.value);
-    powerChart.setOption({
-      backgroundColor: 'transparent',
-      tooltip: { trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.9)', textStyle: { color: '#fff' } },
-      legend: { data: ['今日用電 (kW)', '昨日用電 (kW)'], bottom: 0, textStyle: { color: '#64748b' } },
-      grid: { top: '10%', left: '5%', right: '5%', bottom: '15%', containLabel: true },
-      xAxis: { 
-        type: 'category', boundaryGap: false, 
-        data: ['00:00','04:00','08:00','12:00','16:00','20:00','24:00'],
-        axisLabel: { color: '#64748b' }
-      },
-      yAxis: { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } } },
-      series: [
-        {
-          name: '今日用電 (kW)', type: 'line', smooth: true,
-          lineStyle: { width: 3, color: '#0ea5e9' },
-          areaStyle: {
-            color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(14,165,233,0.4)' }, { offset: 1, color: 'rgba(14,165,233,0.0)' }
-            ])
-          },
-          data: [1200, 1100, 3200, 4500, 4800, 3100, 0] // 最後一筆 0 代表還沒發生
-        },
-        {
-          name: '昨日用電 (kW)', type: 'line', smooth: true,
-          lineStyle: { width: 2, color: '#94a3b8', type: 'dashed' },
-          data: [1150, 1050, 3100, 4400, 4600, 3300, 1250]
-        }
-      ]
-    });
+    powerChart = window.echarts.init(powerChartRef.value)
+    updatePowerChart([])
   }
-
-  // 2. 繪製碳排放源圓餅圖 (Doughnut Chart)
   if (carbonPieRef.value) {
-    carbonPie = window.echarts.init(carbonPieRef.value);
+    carbonPie = window.echarts.init(carbonPieRef.value)
     carbonPie.setOption({
       backgroundColor: 'transparent',
       tooltip: { trigger: 'item', formatter: '{a} <br/>{b}: {c} tCO2e ({d}%)', backgroundColor: 'rgba(15,23,42,0.9)', textStyle: { color: '#fff' } },
       legend: { orient: 'vertical', right: '5%', top: 'middle', textStyle: { color: '#475569', fontWeight: 'bold' } },
-      series: [
-        {
-          name: '碳排來源',
-          type: 'pie',
-          radius: ['50%', '70%'],
-          center: ['40%', '50%'],
-          avoidLabelOverlap: false,
-          itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
-          label: { show: false, position: 'center' },
-          emphasis: {
-            label: { show: true, fontSize: 16, fontWeight: 'bold', color: '#1e293b' }
-          },
-          labelLine: { show: false },
-          data: [
-            { value: 1048, name: '外購電力 (Scope 2)', itemStyle: { color: '#3b82f6' } },
-            { value: 335, name: '空調冷媒洩漏', itemStyle: { color: '#06b6d4' } },
-            { value: 234, name: '公務車汽柴油', itemStyle: { color: '#f59e0b' } },
-            { value: 135, name: '製程直接排放', itemStyle: { color: '#ef4444' } }
-          ]
-        }
-      ]
-    });
+      series: [{
+        name: '碳排來源', type: 'pie', radius: ['50%', '70%'], center: ['40%', '50%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+        label: { show: false }, emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold', color: '#1e293b' } },
+        labelLine: { show: false },
+        data: [
+          { value: 1048, name: '外購電力 (Scope 2)', itemStyle: { color: '#3b82f6' } },
+          { value: 335,  name: '空調冷媒洩漏',       itemStyle: { color: '#06b6d4' } },
+          { value: 234,  name: '公務車汽柴油',       itemStyle: { color: '#f59e0b' } },
+          { value: 135,  name: '製程直接排放',       itemStyle: { color: '#ef4444' } },
+        ]
+      }]
+    })
   }
 
-  window.addEventListener('resize', () => {
-    powerChart && powerChart.resize();
-    carbonPie && carbonPie.resize();
-  });
-};
+  window.addEventListener('resize', handleResize)
+}
+
+const updatePowerChart = (hourlyKwh) => {
+  if (!powerChart) return
+  const labels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2,'0')}:00`)
+  powerChart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.9)', textStyle: { color: '#fff' } },
+    legend: { data: ['今日用電 (kWh)'], bottom: 0, textStyle: { color: '#64748b' } },
+    grid: { top: '10%', left: '5%', right: '5%', bottom: '15%', containLabel: true },
+    xAxis: { type: 'category', boundaryGap: false, data: labels, axisLabel: { color: '#64748b', rotate: 30 } },
+    yAxis: { type: 'value', axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } } },
+    series: [{
+      name: '今日用電 (kWh)', type: 'line', smooth: true,
+      lineStyle: { width: 3, color: '#0ea5e9' },
+      areaStyle: {
+        color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(14,165,233,0.4)' }, { offset: 1, color: 'rgba(14,165,233,0.0)' }
+        ])
+      },
+      data: hourlyKwh.length ? hourlyKwh : Array(24).fill(0)
+    }]
+  })
+}
+
+const handleResize = () => {
+  powerChart?.resize()
+  carbonPie?.resize()
+}
+
+// API
+let pollTimer = null
+const fetchEnergy = async () => {
+  try {
+    const res  = await fetch(API_URL)
+    const json = await res.json()
+    if (json.data) {
+      energyData.value   = json.data
+      apiConnected.value = true
+      updatedAt.value    = new Date().toTimeString().split(' ')[0]
+      updatePowerChart(json.data.hourlyKwh || [])
+    } else {
+      apiConnected.value = false
+    }
+  } catch (e) {
+    apiConnected.value = false
+  }
+}
 
 onMounted(() => {
-  updateTime();
-  timeTimer = setInterval(updateTime, 1000);
-  nextTick(() => { initCharts(); });
-});
+  updateTime()
+  timeTimer = setInterval(updateTime, 1000)
+  nextTick(() => {
+    initCharts()
+    fetchEnergy()
+    pollTimer = setInterval(fetchEnergy, POLL_INTERVAL)
+  })
+})
 
 onUnmounted(() => {
-  clearInterval(timeTimer);
-  window.removeEventListener('resize', powerChart?.resize);
-  powerChart?.dispose();
-  carbonPie?.dispose();
-});
+  clearInterval(timeTimer)
+  clearInterval(pollTimer)
+  window.removeEventListener('resize', handleResize)
+  powerChart?.dispose()
+  carbonPie?.dispose()
+})
 </script>
 
 <style scoped>
-/* 基礎戰情室背景與字型 */
+/* 固定 NavBar */
 .dashboard-container {
-  min-height: 100vh;
-  background-color: #475569; 
+  height: 100vh;
+  background-color: #475569;
   color: #1e293b;
   font-family: sans-serif;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
-
-/* 頂部導覽列 */
 .header {
   background-color: #0f172a;
   color: white;
@@ -230,33 +272,34 @@ onUnmounted(() => {
   align-items: center;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   z-index: 10;
+  flex-shrink: 0;
 }
 .header-left { display: flex; align-items: center; gap: 1rem; }
 .title { font-size: 1.5rem; font-weight: bold; }
-.badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; font-weight: bold; color: white;}
+.badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.875rem; font-weight: bold; color: white; }
 .bg-green { background-color: #10b981; }
 .header-right { text-align: right; }
 .time { color: #22d3ee; font-family: monospace; font-size: 1.25rem; }
 .supervisor { font-size: 0.875rem; color: #9ca3af; margin-top: 0.2rem; }
 
-/* 內容區佈局 */
+/* 內容區可滾動 */
 .main-content {
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   flex: 1;
-  overflow-y: auto; /* 整個儀表板允許滾動 */
+  overflow-y: auto;
+  min-height: 0;
 }
 
-/* 卡片共用樣式 */
-.card {
-  background-color: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-  display: flex;
-  flex-direction: column;
-}
+/* API 狀態列 */
+.api-bar { display: flex; justify-content: space-between; align-items: center; background: white; border-radius: 0.5rem; padding: 0.5rem 1rem; font-size: 0.82rem; font-weight: bold; flex-shrink: 0; }
+.api-ok  { color: #16a34a; }
+.api-err { color: #dc2626; }
+.api-time { color: #94a3b8; font-weight: normal; }
+
+.card { background-color: white; border-radius: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
 .card-header { padding: 1rem 1.5rem; font-weight: bold; border-bottom: 1px solid #e5e7eb; }
 .card-header.dark { background-color: #1e293b; color: white; border-bottom: none; }
 .bg-slate-100 { background-color: #f1f5f9; }
@@ -264,69 +307,38 @@ onUnmounted(() => {
 .w-full { width: 100%; }
 .p-1-5 { padding: 1.5rem; }
 
-/* 區塊 1: KPI 網格 */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
-}
-@media (max-width: 1024px) {
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-}
-.kpi-card {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 1.5rem;
-  gap: 1.25rem;
-}
-.kpi-icon-wrapper {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.8rem;
-}
-.icon-bg-blue { background-color: #e0f2fe; color: #0284c7; }
-.icon-bg-gray { background-color: #f1f5f9; color: #475569; }
-.icon-bg-cyan { background-color: #cffafe; color: #0891b2; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+@media (max-width: 1024px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+.kpi-card { display: flex; flex-direction: row; align-items: center; padding: 1.5rem; gap: 1.25rem; }
+.kpi-icon-wrapper { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; }
+.icon-bg-blue  { background-color: #e0f2fe; color: #0284c7; }
+.icon-bg-gray  { background-color: #f1f5f9; color: #475569; }
+.icon-bg-cyan  { background-color: #cffafe; color: #0891b2; }
 .icon-bg-green { background-color: #d1fae5; color: #059669; }
-
 .kpi-info { display: flex; flex-direction: column; }
 .kpi-label { margin: 0; font-size: 0.9rem; color: #64748b; font-weight: bold; margin-bottom: 0.25rem; }
 .kpi-value { margin: 0; font-size: 2rem; font-weight: bold; color: #1e293b; line-height: 1; }
 .kpi-unit { font-size: 1rem; color: #94a3b8; font-weight: normal; }
 
-/* 區塊 2: 圖表網格 */
-.chart-grid {
-  display: grid;
-  grid-template-columns: 3fr 2fr; /* 面積圖較寬，圓餅圖較窄 */
-  gap: 1.5rem;
-}
-@media (max-width: 1024px) {
-  .chart-grid { grid-template-columns: 1fr; }
-}
+.chart-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 1.5rem; }
+@media (max-width: 1024px) { .chart-grid { grid-template-columns: 1fr; } }
 .chart-card { min-height: 400px; }
 .chart-body { flex: 1; position: relative; padding: 1rem; }
 .echarts-container { width: 100%; height: 100%; min-height: 320px; }
 
-/* 區塊 3: 耗能排行榜 */
 .energy-hog-list { display: flex; flex-direction: column; gap: 1rem; }
 .hog-item { display: flex; flex-direction: column; gap: 0.5rem; }
 .hog-info { display: flex; align-items: center; gap: 0.75rem; font-weight: bold; }
 .hog-rank { background-color: #334155; color: white; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
 .hog-name { flex: 1; color: #334155; }
 .hog-power { font-size: 1.1rem; }
-
 .progress-container { width: 100%; height: 0.75rem; background-color: #e2e8f0; border-radius: 999px; overflow: hidden; }
 .progress-bar { height: 100%; transition: width 1s ease-in-out; }
 
-/* 輔助文字與樣式 */
-.text-cyan { color: #22d3ee; }
+.text-cyan   { color: #22d3ee; }
 .text-orange { color: #f97316; }
-.text-dark { color: #0f172a; }
+.text-dark   { color: #0f172a; }
+.text-sm     { font-size: 0.85rem; }
 .striped-bg {
   background-image: linear-gradient(45deg, rgba(255,255,255,.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.15) 75%, transparent 75%, transparent);
   background-size: 1rem 1rem;

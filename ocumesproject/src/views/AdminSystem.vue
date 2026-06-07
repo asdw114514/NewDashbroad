@@ -14,98 +14,157 @@
 
     <main class="main-content">
 
+      <!-- 身份切換 + API 狀態 -->
+      <div class="top-bar">
+        <div class="identity-bar">
+          <span class="identity-label">🔑 目前登入身份（Demo）：</span>
+          <select class="identity-select" v-model="currentRole">
+            <option value="admin">管理員 (admin)</option>
+            <option value="operator">一般員工 (operator)</option>
+          </select>
+          <span v-if="currentRole === 'operator'" class="identity-hint">
+            ⚠️ 一般員工只能編輯個人資料
+          </span>
+        </div>
+        <span :class="apiConnected ? 'api-ok' : 'api-err'" class="api-status">
+          {{ apiConnected ? '🟢 API 連線正常' : '🔴 API 連線失敗' }}
+        </span>
+      </div>
+
       <!-- KPI -->
       <section class="kpi-grid">
         <div class="kpi-card">
+          <div class="kpi-icon">👑</div>
+          <div class="kpi-info">
+            <div class="kpi-label">管理員人數</div>
+            <div class="kpi-value text-red">{{ users.filter(u=>u.role==='admin').length }}</div>
+          </div>
+        </div>
+        <div class="kpi-card">
           <div class="kpi-icon">👤</div>
           <div class="kpi-info">
-            <div class="kpi-label">系統帳號數</div>
-            <div class="kpi-value text-white">12</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">🟢</div>
-          <div class="kpi-info">
-            <div class="kpi-label">目前在線</div>
-            <div class="kpi-value text-green">4</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">🔒</div>
-          <div class="kpi-info">
-            <div class="kpi-label">停用帳號</div>
-            <div class="kpi-value text-red">2</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">📝</div>
-          <div class="kpi-info">
-            <div class="kpi-label">今日操作日誌</div>
-            <div class="kpi-value text-cyan">38</div>
+            <div class="kpi-label">一般員工人數</div>
+            <div class="kpi-value text-cyan">{{ users.filter(u=>u.role==='operator').length }}</div>
           </div>
         </div>
       </section>
 
-      <div class="bottom-grid">
+      <!-- 使用者列表 -->
+      <section class="card">
+        <div class="card-header">
+          <span>👤 使用者管理</span>
+          <button v-if="currentRole === 'admin'" class="add-btn" @click="openAddModal">➕ 新增使用者</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>使用者ID</th>
+                <th>姓名</th>
+                <th>角色</th>
+                <th>最後更新</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading">
+                <td colspan="5" class="no-data">⏳ 載入中...</td>
+              </tr>
+              <tr v-else-if="visibleUsers.length === 0">
+                <td colspan="5" class="no-data">📭 尚無使用者資料</td>
+              </tr>
+              <tr v-else v-for="user in visibleUsers" :key="user.userId">
+                <td class="id-cell">{{ user.userId }}</td>
+                <td class="fw-bold">{{ user.name }}</td>
+                <td>
+                  <span class="role-badge" :class="user.role === 'admin' ? 'role-admin' : 'role-op'">
+                    {{ user.role === 'admin' ? '👑 管理員' : '👤 一般員工' }}
+                  </span>
+                </td>
+                <td class="text-muted">{{ user.updatedAt ? user.updatedAt.split('T')[0] : '—' }}</td>
+                <td class="action-cell">
+                  <button class="edit-btn" @click="openEditModal(user)">✏️ 編輯</button>
+                  <button
+                    v-if="currentRole === 'admin'"
+                    class="del-btn"
+                    @click="deleteUser(user.userId)"
+                  >🗑️</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        <!-- 帳號管理 -->
-        <section class="card">
-          <div class="card-header">
-            <span>👤 帳號管理</span>
-            <select class="filter-select" v-model="filterRole">
-              <option value="">全部角色</option>
-              <option value="系統管理員">系統管理員</option>
-              <option value="現場主管">現場主管</option>
-              <option value="操作員">操作員</option>
-              <option value="品管人員">品管人員</option>
-            </select>
-          </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>帳號</th>
-                  <th>姓名</th>
-                  <th>角色</th>
-                  <th>部門</th>
-                  <th>最後登入</th>
-                  <th>狀態</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="user in filteredUsers" :key="user.id">
-                  <td class="id-cell">{{ user.account }}</td>
-                  <td>{{ user.name }}</td>
-                  <td><span class="role-tag" :class="user.roleClass">{{ user.role }}</span></td>
-                  <td class="text-muted-sm">{{ user.dept }}</td>
-                  <td class="text-muted-sm">{{ user.lastLogin }}</td>
-                  <td>
-                    <span class="status-badge" :class="user.statusClass">{{ user.status }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+      <!-- 錯誤提示 -->
+      <div v-if="errorMsg" class="error-alert">⚠️ {{ errorMsg }}</div>
 
-        <!-- 右側：系統操作日誌 -->
-        <section class="card">
-          <div class="card-header">📝 系統操作日誌</div>
-          <div class="log-list">
-            <div class="log-item" v-for="log in logs" :key="log.id">
-              <div class="log-time">{{ log.time }}</div>
-              <div class="log-content">
-                <span class="log-user">{{ log.user }}</span>
-                <span class="log-action" :class="log.actionClass">{{ log.action }}</span>
-              </div>
-              <div class="log-detail">{{ log.detail }}</div>
-            </div>
-          </div>
-        </section>
-
-      </div>
     </main>
 
+      <Teleport to="body">
+        <div class="system-modal-overlay" v-if="showAddModal" @click.self="showAddModal = false">
+          <div class="system-modal">
+            <div class="system-modal-header">➕ 新增使用者</div>
+            <div class="system-modal-body">
+              <div class="system-form-group">
+                <label>使用者ID</label>
+                <input class="system-form-input" v-model="addForm.userId" placeholder="例：USR-003">
+              </div>
+              <div class="system-form-group">
+                <label>姓名</label>
+                <input class="system-form-input" v-model="addForm.name" placeholder="例：林小明">
+              </div>
+              <div class="system-form-group">
+                <label>角色</label>
+                <select class="system-form-input" v-model="addForm.role">
+                  <option value="operator">一般員工</option>
+                  <option value="admin">管理員</option>
+                </select>
+              </div>
+              <div class="system-form-group">
+                <label>初始密碼</label>
+                <input class="system-form-input" type="password" v-model="addForm.password" placeholder="請輸入密碼">
+              </div>
+            </div>
+            <div class="system-modal-footer">
+              <button class="system-btn system-btn-outline" @click="showAddModal = false">取消</button>
+              <button class="system-btn system-btn-primary" @click="addUser">確認新增</button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+      <Teleport to="body">
+        <div class="system-modal-overlay" v-if="showEditModal" @click.self="showEditModal = false">
+          <div class="system-modal">
+            <div class="system-modal-header">✏️ 編輯使用者</div>
+            <div class="system-modal-body">
+              <div class="system-form-group">
+                <label>使用者ID</label>
+                <input class="system-form-input system-form-input-disabled" :value="editForm.userId" disabled>
+              </div>
+              <div class="system-form-group">
+                <label>姓名</label>
+                <input class="system-form-input" v-model="editForm.name">
+              </div>
+              <div class="system-form-group" v-if="currentRole === 'admin'">
+                <label>角色</label>
+                <select class="system-form-input" v-model="editForm.role">
+                  <option value="operator">一般員工</option>
+                  <option value="admin">管理員</option>
+                </select>
+              </div>
+              <div class="system-form-group">
+                <label>新密碼（留空則不修改）</label>
+                <input class="system-form-input" type="password" v-model="editForm.password" placeholder="留空則不變更">
+              </div>
+            </div>
+            <div class="system-modal-footer">
+              <button class="system-btn system-btn-outline" @click="showEditModal = false">取消</button>
+              <button class="system-btn system-btn-primary" @click="updateUser">確認儲存</button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     <NavDrawer />
   </div>
 </template>
@@ -116,6 +175,7 @@ import { useRouter } from 'vue-router'
 import NavDrawer from '@/components/NavDrawer.vue'
 
 const router = useRouter()
+const API = 'http://localhost:1880'
 const currentTime = ref('')
 let timer = null
 const updateTime = () => {
@@ -123,97 +183,158 @@ const updateTime = () => {
   currentTime.value = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`
 }
 
-const filterRole = ref('')
+// Demo 身份切換（假設目前登入的是第一位 admin）
+const currentRole = ref('admin')
+const currentUserId = ref('USR-001') // Demo 用，假設目前登入者
 
-const users = ref([
-  { id: 1,  account: 'admin',    name: '王大明', role: '系統管理員', roleClass: 'role-admin',   dept: '資訊部', lastLogin: '2026-05-13 08:01', status: '在線',   statusClass: 'status-online' },
-  { id: 2,  account: 'chen.mg',  name: '陳志明', role: '現場主管',   roleClass: 'role-manager', dept: '生產部', lastLogin: '2026-05-13 07:55', status: '在線',   statusClass: 'status-online' },
-  { id: 3,  account: 'lin.op1',  name: '林小芳', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-13 08:10', status: '在線',   statusClass: 'status-online' },
-  { id: 4,  account: 'wu.qc',    name: '吳建國', role: '品管人員',   roleClass: 'role-qc',      dept: '品管部', lastLogin: '2026-05-13 08:30', status: '在線',   statusClass: 'status-online' },
-  { id: 5,  account: 'huang.op', name: '黃美麗', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-12 17:30', status: '離線',   statusClass: 'status-offline' },
-  { id: 6,  account: 'chou.mg',  name: '周俊賢', role: '現場主管',   roleClass: 'role-manager', dept: '品管部', lastLogin: '2026-05-12 16:45', status: '離線',   statusClass: 'status-offline' },
-  { id: 7,  account: 'liao.op',  name: '廖文雄', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-10 09:20', status: '停用',   statusClass: 'status-disabled' },
-  { id: 8,  account: 'tsai.op',  name: '蔡雅惠', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-08 14:15', status: '停用',   statusClass: 'status-disabled' },
-  { id: 9,  account: 'hsu.qc',   name: '許志豪', role: '品管人員',   roleClass: 'role-qc',      dept: '品管部', lastLogin: '2026-05-12 11:00', status: '離線',   statusClass: 'status-offline' },
-  { id: 10, account: 'chang.op', name: '張淑娟', role: '操作員',     roleClass: 'role-op',      dept: '生產部', lastLogin: '2026-05-11 18:00', status: '離線',   statusClass: 'status-offline' },
-])
+const apiConnected = ref(false)
+const loading = ref(true)
+const users = ref([])
+const errorMsg = ref('')
+const showAddModal = ref(false)
+const showEditModal = ref(false)
+const addForm = ref({ userId:'', name:'', role:'operator', password:'' })
+const editForm = ref({ userId:'', name:'', role:'', password:'' })
 
-const filteredUsers = computed(() => {
-  if (!filterRole.value) return users.value
-  return users.value.filter(u => u.role === filterRole.value)
+// operator 只能看到自己
+const visibleUsers = computed(() => {
+  if (currentRole.value === 'admin') return users.value
+  return users.value.filter(u => u.userId === currentUserId.value)
 })
 
-const logs = ref([
-  { id: 1,  time: '08:01', user: 'admin',    action: '登入',   actionClass: 'action-login',  detail: '系統管理員登入' },
-  { id: 2,  time: '08:05', user: 'admin',    action: '修改',   actionClass: 'action-edit',   detail: '修改 INJ-101 保養週期參數' },
-  { id: 3,  time: '08:10', user: 'lin.op1',  action: '登入',   actionClass: 'action-login',  detail: '操作員登入' },
-  { id: 4,  time: '08:15', user: 'chen.mg',  action: '審核',   actionClass: 'action-approve',detail: '審核工單 WO-2026-004' },
-  { id: 5,  time: '08:30', user: 'wu.qc',    action: '登入',   actionClass: 'action-login',  detail: '品管人員登入' },
-  { id: 6,  time: '08:45', user: 'wu.qc',    action: '新增',   actionClass: 'action-add',    detail: '新增檢驗記錄 LOT-20260513-007' },
-  { id: 7,  time: '09:10', user: 'admin',    action: '新增',   actionClass: 'action-add',    detail: '新增帳號 hsu.qc' },
-  { id: 8,  time: '09:30', user: 'lin.op1',  action: '修改',   actionClass: 'action-edit',   detail: '更新生產數量 WO-2026-002' },
-  { id: 9,  time: '10:00', user: 'chen.mg',  action: '刪除',   actionClass: 'action-delete', detail: '刪除已逾期工單 WO-2026-000' },
-  { id: 10, time: '10:25', user: 'admin',    action: '停用',   actionClass: 'action-delete', detail: '停用帳號 liao.op' },
-])
+const fetchUsers = async () => {
+  try {
+    const res = await fetch(`${API}/users`)
+    const data = await res.json()
+    users.value = data.data || []
+    apiConnected.value = true
+  } catch {
+    apiConnected.value = false
+  } finally {
+    loading.value = false
+  }
+}
 
-onMounted(() => { updateTime(); timer = setInterval(updateTime, 1000) })
+const openAddModal = () => {
+  addForm.value = { userId:'', name:'', role:'operator', password:'' }
+  showAddModal.value = true
+}
+
+const addUser = async () => {
+  if (!addForm.value.userId || !addForm.value.name) return alert('請填寫必填欄位')
+  await fetch(`${API}/users/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(addForm.value)
+  })
+  showAddModal.value = false
+  fetchUsers()
+}
+
+const openEditModal = (user) => {
+  editForm.value = { userId: user.userId, name: user.name, role: user.role, password:'' }
+  showEditModal.value = true
+}
+
+const updateUser = async () => {
+  const body = { userId: editForm.value.userId, name: editForm.value.name }
+  if (currentRole.value === 'admin') body.role = editForm.value.role
+  if (editForm.value.password) body.password = editForm.value.password
+  await fetch(`${API}/users/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+  showEditModal.value = false
+  fetchUsers()
+}
+
+const deleteUser = async (userId) => {
+  // 確認至少保留一位 admin
+  const targetUser = users.value.find(u => u.userId === userId)
+  if (targetUser?.role === 'admin') {
+    const adminCount = users.value.filter(u => u.role === 'admin').length
+    if (adminCount <= 1) {
+      errorMsg.value = '至少需要保留一位管理員，無法刪除！'
+      setTimeout(() => { errorMsg.value = '' }, 3000)
+      return
+    }
+  }
+  if (!confirm(`確定刪除使用者 ${userId}？`)) return
+  await fetch(`${API}/users/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId })
+  })
+  fetchUsers()
+}
+
+onMounted(() => { updateTime(); timer = setInterval(updateTime, 1000); fetchUsers() })
 onUnmounted(() => clearInterval(timer))
 </script>
 
 <style scoped>
-.dashboard-container { min-height: 100vh; background-color: #475569; font-family: sans-serif; display: flex; flex-direction: column; }
-.header { background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+.dashboard-container { height: 100vh; background-color: #475569; font-family: sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+.header { background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
 .header-left { display: flex; align-items: center; gap: 1rem; }
 .title { font-size: 1.5rem; font-weight: bold; }
 .badge { padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.875rem; font-weight: bold; color: white; }
 .bg-red { background-color: #ef4444; }
-.back-btn { background: #1e293b; color: #94a3b8; border: none; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
+.back-btn { background: #1e293b; color: #94a3b8; border: none; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
 .back-btn:hover { background: #334155; color: white; }
 .header-right { text-align: right; }
 .time { color: #22d3ee; font-family: monospace; font-size: 1.25rem; }
 .supervisor { font-size: 0.875rem; color: #9ca3af; }
-.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex: 1; }
-.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; flex: 1; overflow-y: auto; min-height: 0; }
+.top-bar { display: flex; justify-content: space-between; align-items: center; background: white; border-radius: 0.5rem; padding: 0.65rem 1rem; flex-shrink: 0; }
+.identity-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.identity-label { font-size: 0.85rem; font-weight: bold; color: #334155; }
+.identity-select { border: 2px solid #0ea5e9; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.85rem; font-weight: bold; color: #0ea5e9; outline: none; cursor: pointer; }
+.identity-hint { font-size: 0.78rem; color: #f97316; font-weight: bold; }
+.api-status { font-size: 0.85rem; font-weight: bold; }
+.api-ok { color: #16a34a; }
+.api-err { color: #dc2626; }
+.kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; flex-shrink: 0; }
 .kpi-card { background-color: #1e293b; border-radius: 0.75rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
 .kpi-icon { font-size: 2rem; }
 .kpi-label { color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem; }
 .kpi-value { font-size: 2rem; font-weight: bold; }
-.bottom-grid { display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; }
 .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
 .card-header { background-color: #1e293b; color: white; padding: 0.75rem 1.25rem; font-weight: bold; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
-.filter-select { background: #334155; border: none; color: white; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; outline: none; cursor: pointer; }
+.add-btn { background: #ef4444; color: white; border: none; padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.82rem; }
+.add-btn:hover { background: #dc2626; }
 .table-wrap { overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .data-table thead tr { background-color: #f1f5f9; }
 .data-table th { padding: 0.75rem 1rem; text-align: left; color: #475569; font-weight: bold; font-size: 0.8rem; }
-.data-table td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
+.data-table td { padding: 0.65rem 1rem; border-bottom: 1px solid #f1f5f9; color: #1e293b; vertical-align: middle; }
 .data-table tbody tr:hover { background-color: #f8fafc; }
 .id-cell { font-family: monospace; font-weight: bold; color: #0ea5e9; }
-.role-tag { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
-.role-admin   { background: #fee2e2; color: #dc2626; }
-.role-manager { background: #dbeafe; color: #1d4ed8; }
-.role-op      { background: #f0fdf4; color: #16a34a; }
-.role-qc      { background: #faf5ff; color: #7e22ce; }
-.status-badge { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: bold; }
-.status-online   { background: #dcfce7; color: #16a34a; }
-.status-offline  { background: #f1f5f9; color: #64748b; }
-.status-disabled { background: #fee2e2; color: #dc2626; }
-.text-muted-sm { color: #94a3b8; font-size: 0.85rem; }
-.log-list { padding: 0.75rem 1.25rem; display: flex; flex-direction: column; gap: 0; overflow-y: auto; max-height: 500px; }
-.log-item { padding: 0.65rem 0; border-bottom: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 0.2rem; }
-.log-item:last-child { border-bottom: none; }
-.log-time { font-size: 0.72rem; color: #94a3b8; font-family: monospace; }
-.log-content { display: flex; align-items: center; gap: 0.5rem; }
-.log-user { font-size: 0.82rem; font-weight: bold; color: #0ea5e9; font-family: monospace; }
-.log-action { font-size: 0.75rem; font-weight: bold; padding: 0.1rem 0.4rem; border-radius: 4px; }
-.action-login   { background: #dcfce7; color: #16a34a; }
-.action-edit    { background: #dbeafe; color: #1d4ed8; }
-.action-add     { background: #f3e8ff; color: #7e22ce; }
-.action-approve { background: #fef9c3; color: #a16207; }
-.action-delete  { background: #fee2e2; color: #dc2626; }
-.log-detail { font-size: 0.8rem; color: #64748b; }
-.text-white { color: white; }
-.text-green { color: #16a34a; }
-.text-cyan  { color: #0891b2; }
-.text-red   { color: #dc2626; }
+.role-badge { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: bold; }
+.role-admin { background: #fee2e2; color: #dc2626; }
+.role-op    { background: #dbeafe; color: #1d4ed8; }
+.action-cell { display: flex; gap: 0.5rem; }
+.edit-btn { background: #dbeafe; color: #1d4ed8; border: none; padding: 0.3rem 0.65rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+.edit-btn:hover { background: #bfdbfe; }
+.del-btn { background: #fee2e2; color: #dc2626; border: none; padding: 0.3rem 0.6rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+.del-btn:hover { background: #fca5a5; }
+.no-data { text-align: center; padding: 2rem; color: #94a3b8; }
+.error-alert { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 0.5rem; padding: 0.75rem 1rem; font-weight: bold; font-size: 0.88rem; }
+</style>
+<style>
+.system-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.system-modal { background: white !important; border-radius: 0.75rem; width: 420px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); overflow: hidden; }
+.system-modal-header { background: #1e293b !important; color: white !important; padding: 1rem 1.5rem; font-weight: bold; font-size: 1rem; }
+.system-modal-body { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.85rem; background: white; }
+.system-modal-footer { padding: 1rem 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid #f1f5f9; background: white; }
+.system-form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+.system-form-group label { font-size: 0.8rem; font-weight: bold; color: #475569; }
+.system-form-input { padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1 !important; border-radius: 6px; font-size: 0.88rem; outline: none; background: white !important; color: #1e293b !important; width: 100%; box-sizing: border-box; }
+.system-form-input:focus { border-color: #ef4444 !important; }
+.system-form-input-disabled { background: #f1f5f9 !important; color: #94a3b8 !important; cursor: not-allowed; }
+.system-btn { padding: 0.5rem 1.25rem; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.88rem; border: none; }
+.system-btn-primary { background: #ef4444 !important; color: white !important; }
+.system-btn-primary:hover { background: #dc2626 !important; }
+.system-btn-outline { background: white !important; border: 1px solid #cbd5e1 !important; color: #475569 !important; }
+.system-btn-outline:hover { background: #f1f5f9 !important; }
 </style>

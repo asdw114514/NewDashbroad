@@ -156,10 +156,9 @@ onUnmounted(() => {
   clearInterval(timeTimer)
 })
 </script>
-
 <style scoped>
 .dashboard-container {
-  min-height: 100vh;
+  height: 100vh;
   background-color: #475569;
   color: #1e293b;
   font-family: sans-serif;
@@ -175,6 +174,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 .header-left { display: flex; align-items: center; gap: 1rem; }
@@ -193,6 +193,8 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 1.5rem;
   flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* 歡迎橫幅 */

@@ -14,99 +14,150 @@
 
     <main class="main-content">
 
+      <!-- API 狀態 -->
+      <div class="api-bar">
+        <span :class="apiConnected ? 'api-ok' : 'api-err'">
+          {{ apiConnected ? '🟢 API 連線正常' : '🔴 API 連線失敗' }}
+        </span>
+        <button class="add-btn" @click="showAddModal = true">➕ 新增物料</button>
+      </div>
+
       <!-- KPI -->
       <section class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-icon">📦</div>
           <div class="kpi-info">
-            <div class="kpi-label">料件種類</div>
-            <div class="kpi-value text-white">48</div>
+            <div class="kpi-label">總物料種類</div>
+            <div class="kpi-value text-white">{{ materials.length }}</div>
           </div>
         </div>
         <div class="kpi-card">
           <div class="kpi-icon">⚠️</div>
           <div class="kpi-info">
             <div class="kpi-label">低庫存警示</div>
-            <div class="kpi-value text-red">3</div>
+            <div class="kpi-value text-red">{{ lowStockCount }}</div>
           </div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-icon">🔄</div>
+          <div class="kpi-icon">✅</div>
           <div class="kpi-info">
-            <div class="kpi-label">今日領料次數</div>
-            <div class="kpi-value text-cyan">18</div>
-          </div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-icon">📥</div>
-          <div class="kpi-info">
-            <div class="kpi-label">今日入庫次數</div>
-            <div class="kpi-value text-green">5</div>
+            <div class="kpi-label">庫存正常</div>
+            <div class="kpi-value text-green">{{ materials.length - lowStockCount }}</div>
           </div>
         </div>
       </section>
 
-      <div class="bottom-grid">
+      <!-- 物料列表 -->
+      <section class="card">
+        <div class="card-header">
+          <span>📦 物料庫存狀況</span>
+          <input class="search-input" v-model="searchText" placeholder="搜尋物料...">
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>物料ID</th>
+                <th>名稱</th>
+                <th>單位</th>
+                <th>目前庫存</th>
+                <th>安全庫存</th>
+                <th>庫存狀態</th>
+                <th>庫存量</th>
+                <th>最後更新</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading">
+                <td colspan="9" class="no-data">⏳ 載入中...</td>
+              </tr>
+              <tr v-else-if="filteredMaterials.length === 0">
+                <td colspan="9" class="no-data">📭 尚無物料資料</td>
+              </tr>
+              <tr v-else v-for="mat in filteredMaterials" :key="mat._id">
+                <td class="id-cell">{{ mat.materialId }}</td>
+                <td class="fw-bold">{{ mat.name }}</td>
+                <td class="text-muted">{{ mat.unit }}</td>
+                <td :class="getQtyClass(mat.quantity, mat.minStock)">{{ mat.quantity.toLocaleString() }}</td>
+                <td class="text-muted">{{ mat.minStock.toLocaleString() }}</td>
+                <td>
+                  <span class="status-badge" :class="getStockBadgeClass(mat.quantity, mat.minStock)">
+                    {{ getStockLabel(mat.quantity, mat.minStock) }}
+                  </span>
+                </td>
+                <td class="progress-cell">
+                  <div class="progress-bg">
+                    <div class="progress-fill" :class="getProgressClass(mat.quantity, mat.minStock)" :style="{ width: getProgressWidth(mat.quantity, mat.minStock) + '%' }"></div>
+                  </div>
+                </td>
+                <td class="text-muted">{{ mat.updatedAt ? mat.updatedAt.split('T')[0] : '—' }}</td>
+                <td class="action-cell">
+                  <button class="edit-btn" @click="openAdjust(mat)">調整</button>
+                  <button class="del-btn" @click="deleteMaterial(mat.materialId)">🗑️</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
 
-        <!-- 庫存列表 -->
-        <section class="card">
-          <div class="card-header">
-            <span>📦 料件庫存狀況</span>
-            <input class="search-input" v-model="searchText" placeholder="搜尋料件..." />
-          </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>料號</th>
-                  <th>名稱</th>
-                  <th>類別</th>
-                  <th>現有庫存</th>
-                  <th>安全庫存</th>
-                  <th>單位</th>
-                  <th>狀態</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="mat in filteredMaterials" :key="mat.id">
-                  <td class="id-cell">{{ mat.id }}</td>
-                  <td>{{ mat.name }}</td>
-                  <td><span class="cat-tag" :class="mat.catClass">{{ mat.category }}</span></td>
-                  <td :class="mat.stock <= mat.safeStock ? 'text-red fw-bold' : 'text-dark'">{{ mat.stock.toLocaleString() }}</td>
-                  <td class="text-muted-sm">{{ mat.safeStock.toLocaleString() }}</td>
-                  <td class="text-muted-sm">{{ mat.unit }}</td>
-                  <td>
-                    <span class="status-badge" :class="getStockClass(mat.stock, mat.safeStock)">
-                      {{ getStockLabel(mat.stock, mat.safeStock) }}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- 右側：今日領料記錄 -->
-        <section class="card">
-          <div class="card-header">🔄 今日領料記錄</div>
-          <div class="txn-list">
-            <div class="txn-item" v-for="txn in transactions" :key="txn.id">
-              <div class="txn-left">
-                <span class="txn-time">{{ txn.time }}</span>
-                <span class="txn-name">{{ txn.name }}</span>
-              </div>
-              <div class="txn-right">
-                <span class="txn-qty" :class="txn.type === '領料' ? 'text-red' : 'text-green'">
-                  {{ txn.type === '領料' ? '-' : '+' }}{{ txn.qty }} {{ txn.unit }}
-                </span>
-                <span class="txn-type-badge" :class="txn.type === '領料' ? 'badge-out' : 'badge-in'">{{ txn.type }}</span>
-              </div>
+    <!-- 新增物料 Modal -->
+    <Teleport to="body">
+      <div class="material-modal-overlay" v-if="showAddModal" @click.self="showAddModal = false">
+        <div class="material-modal">
+          <div class="material-modal-header">➕ 新增物料</div>
+          <div class="material-modal-body">
+            <div class="material-form-group">
+              <label>物料ID</label>
+              <input class="material-form-input" v-model="addForm.materialId" placeholder="例：MAT-001">
+            </div>
+            <div class="material-form-group">
+              <label>名稱</label>
+              <input class="material-form-input" v-model="addForm.name" placeholder="例：ABS 塑料">
+            </div>
+            <div class="material-form-group">
+              <label>單位</label>
+              <input class="material-form-input" v-model="addForm.unit" placeholder="例：kg">
+            </div>
+            <div class="material-form-group">
+              <label>初始數量</label>
+              <input class="material-form-input" type="number" v-model="addForm.quantity" placeholder="例：1000">
+            </div>
+            <div class="material-form-group">
+              <label>安全庫存量</label>
+              <input class="material-form-input" type="number" v-model="addForm.minStock" placeholder="例：200">
             </div>
           </div>
-        </section>
-
+          <div class="material-modal-footer">
+            <button class="material-btn material-btn-outline" @click="showAddModal = false">取消</button>
+            <button class="material-btn material-btn-primary" @click="addMaterial">確認新增</button>
+          </div>
+        </div>
       </div>
-    </main>
+    </Teleport>
+
+    <!-- 調整數量 Modal -->
+    <Teleport to="body">
+      <div class="material-modal-overlay" v-if="showAdjustModal" @click.self="showAdjustModal = false">
+        <div class="material-modal">
+          <div class="material-modal-header">🔄 調整庫存數量</div>
+          <div class="material-modal-body">
+            <p class="material-adjust-info">物料：<strong>{{ adjustTarget?.name }}</strong>（{{ adjustTarget?.materialId }}）</p>
+            <p class="material-adjust-info">目前數量：<strong>{{ adjustTarget?.quantity }} {{ adjustTarget?.unit }}</strong></p>
+            <div class="material-form-group">
+              <label>新數量</label>
+              <input class="material-form-input" type="number" v-model="newQuantity" placeholder="輸入新數量">
+            </div>
+          </div>
+          <div class="material-modal-footer">
+            <button class="material-btn material-btn-outline" @click="showAdjustModal = false">取消</button>
+            <button class="material-btn material-btn-primary" @click="adjustQuantity">確認調整</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <NavDrawer />
   </div>
@@ -118,6 +169,7 @@ import { useRouter } from 'vue-router'
 import NavDrawer from '@/components/NavDrawer.vue'
 
 const router = useRouter()
+const API = 'http://localhost:1880'
 const currentTime = ref('')
 let timer = null
 const updateTime = () => {
@@ -125,65 +177,107 @@ const updateTime = () => {
   currentTime.value = `${now.toISOString().split('T')[0]} ${now.toTimeString().split(' ')[0]}`
 }
 
+const apiConnected = ref(false)
+const loading = ref(true)
+const materials = ref([])
 const searchText = ref('')
-
-const materials = ref([
-  { id: 'MAT-001', name: 'ABS 塑膠粒',   category: '原料', catClass: 'cat-raw',   stock: 1500, safeStock: 500,  unit: 'kg' },
-  { id: 'MAT-002', name: 'PC 塑膠粒',    category: '原料', catClass: 'cat-raw',   stock: 320,  safeStock: 400,  unit: 'kg' },
-  { id: 'MAT-003', name: 'M3 螺絲',      category: '零件', catClass: 'cat-part',  stock: 8500, safeStock: 2000, unit: 'pcs' },
-  { id: 'MAT-004', name: 'M5 螺絲',      category: '零件', catClass: 'cat-part',  stock: 3200, safeStock: 1000, unit: 'pcs' },
-  { id: 'MAT-005', name: '銅嵌件 φ4',   category: '零件', catClass: 'cat-part',  stock: 150,  safeStock: 500,  unit: 'pcs' },
-  { id: 'MAT-006', name: '潤滑油脂',     category: '耗材', catClass: 'cat-cons',  stock: 25,   safeStock: 10,   unit: 'L' },
-  { id: 'MAT-007', name: '包裝紙箱(大)', category: '包材', catClass: 'cat-pack',  stock: 600,  safeStock: 200,  unit: 'pcs' },
-  { id: 'MAT-008', name: '包裝紙箱(小)', category: '包材', catClass: 'cat-pack',  stock: 1200, safeStock: 300,  unit: 'pcs' },
-  { id: 'MAT-009', name: 'PP 塑膠粒',    category: '原料', catClass: 'cat-raw',   stock: 880,  safeStock: 400,  unit: 'kg' },
-  { id: 'MAT-010', name: '彈簧片 A型',   category: '零件', catClass: 'cat-part',  stock: 2400, safeStock: 800,  unit: 'pcs' },
-])
+const showAddModal = ref(false)
+const showAdjustModal = ref(false)
+const adjustTarget = ref(null)
+const newQuantity = ref('')
+const addForm = ref({ materialId:'', name:'', unit:'', quantity:'', minStock:'' })
 
 const filteredMaterials = computed(() => {
   if (!searchText.value) return materials.value
-  return materials.value.filter(m => m.id.includes(searchText.value) || m.name.includes(searchText.value))
+  return materials.value.filter(m => m.materialId.includes(searchText.value) || m.name.includes(searchText.value))
 })
 
-const getStockClass = (stock, safe) => stock <= safe * 0.5 ? 'status-critical' : stock <= safe ? 'status-low' : 'status-ok'
-const getStockLabel = (stock, safe) => stock <= safe * 0.5 ? '嚴重不足' : stock <= safe ? '低庫存' : '正常'
+const lowStockCount = computed(() => materials.value.filter(m => m.quantity <= m.minStock).length)
 
-const transactions = ref([
-  { id: 1,  time: '08:12', name: 'ABS 塑膠粒',     qty: 200,  unit: 'kg',  type: '領料' },
-  { id: 2,  time: '08:35', name: 'M3 螺絲',        qty: 500,  unit: 'pcs', type: '領料' },
-  { id: 3,  time: '09:10', name: 'PC 塑膠粒',      qty: 800,  unit: 'kg',  type: '入庫' },
-  { id: 4,  time: '09:45', name: '銅嵌件 φ4',     qty: 100,  unit: 'pcs', type: '領料' },
-  { id: 5,  time: '10:20', name: '包裝紙箱(大)',   qty: 100,  unit: 'pcs', type: '領料' },
-  { id: 6,  time: '10:55', name: 'M5 螺絲',        qty: 1000, unit: 'pcs', type: '入庫' },
-  { id: 7,  time: '11:30', name: 'PP 塑膠粒',      qty: 150,  unit: 'kg',  type: '領料' },
-  { id: 8,  time: '13:00', name: '彈簧片 A型',     qty: 200,  unit: 'pcs', type: '領料' },
-  { id: 9,  time: '13:40', name: '銅嵌件 φ4',     qty: 500,  unit: 'pcs', type: '入庫' },
-  { id: 10, time: '14:15', name: '包裝紙箱(小)',   qty: 200,  unit: 'pcs', type: '領料' },
-])
+const getQtyClass      = (q, min) => q <= min * 0.5 ? 'text-red fw-bold' : q <= min ? 'text-orange fw-bold' : 'text-dark fw-bold'
+const getStockBadgeClass = (q, min) => q <= min * 0.5 ? 'status-critical' : q <= min ? 'status-low' : 'status-ok'
+const getStockLabel    = (q, min) => q <= min * 0.5 ? '🔴 危險' : q <= min ? '🟡 警示' : '🟢 正常'
+const getProgressClass = (q, min) => q <= min * 0.5 ? 'bar-red' : q <= min ? 'bar-orange' : 'bar-green'
+const getProgressWidth = (q, min) => Math.min((q / (min * 2)) * 100, 100)
 
-onMounted(() => { updateTime(); timer = setInterval(updateTime, 1000) })
+const fetchMaterials = async () => {
+  try {
+    const res = await fetch(`${API}/materials`)
+    const data = await res.json()
+    materials.value = data.data || []
+    apiConnected.value = true
+  } catch {
+    apiConnected.value = false
+  } finally {
+    loading.value = false
+  }
+}
+
+const addMaterial = async () => {
+  if (!addForm.value.materialId || !addForm.value.name) return alert('請填寫必填欄位')
+  await fetch(`${API}/materials/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(addForm.value)
+  })
+  showAddModal.value = false
+  addForm.value = { materialId:'', name:'', unit:'', quantity:'', minStock:'' }
+  fetchMaterials()
+}
+
+const openAdjust = (mat) => {
+  adjustTarget.value = mat
+  newQuantity.value = mat.quantity
+  showAdjustModal.value = true
+}
+
+const adjustQuantity = async () => {
+  await fetch(`${API}/materials/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ materialId: adjustTarget.value.materialId, quantity: newQuantity.value })
+  })
+  showAdjustModal.value = false
+  fetchMaterials()
+}
+
+const deleteMaterial = async (materialId) => {
+  if (!confirm(`確定刪除物料 ${materialId}？`)) return
+  await fetch(`${API}/materials/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ materialId })
+  })
+  fetchMaterials()
+}
+
+onMounted(() => { updateTime(); timer = setInterval(updateTime, 1000); fetchMaterials() })
 onUnmounted(() => clearInterval(timer))
 </script>
 
 <style scoped>
-.dashboard-container { min-height: 100vh; background-color: #475569; font-family: sans-serif; display: flex; flex-direction: column; }
-.header { background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+.dashboard-container { height: 100vh; background-color: #475569; font-family: sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+.header { background-color: #0f172a; color: white; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
 .header-left { display: flex; align-items: center; gap: 1rem; }
 .title { font-size: 1.5rem; font-weight: bold; }
 .badge { padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.875rem; font-weight: bold; color: white; }
 .bg-purple { background-color: #a855f7; }
-.back-btn { background: #1e293b; color: #94a3b8; border: none; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
+.back-btn { background: #1e293b; color: #94a3b8; border: none; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
 .back-btn:hover { background: #334155; color: white; }
 .header-right { text-align: right; }
 .time { color: #22d3ee; font-family: monospace; font-size: 1.25rem; }
 .supervisor { font-size: 0.875rem; color: #9ca3af; }
-.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; flex: 1; }
-.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+.main-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; flex: 1; overflow-y: auto; min-height: 0; }
+.api-bar { display: flex; justify-content: space-between; align-items: center; background: white; border-radius: 0.5rem; padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: bold; flex-shrink: 0; }
+.api-ok { color: #16a34a; }
+.api-err { color: #dc2626; }
+.add-btn { background: #a855f7; color: white; border: none; padding: 0.45rem 1rem; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
+.add-btn:hover { background: #9333ea; }
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; flex-shrink: 0; }
 .kpi-card { background-color: #1e293b; border-radius: 0.75rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
 .kpi-icon { font-size: 2rem; }
 .kpi-label { color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem; }
 .kpi-value { font-size: 2rem; font-weight: bold; }
-.bottom-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; }
 .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; }
 .card-header { background-color: #1e293b; color: white; padding: 0.75rem 1.25rem; font-weight: bold; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
 .search-input { background: #334155; border: none; color: white; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; outline: none; }
@@ -192,34 +286,41 @@ onUnmounted(() => clearInterval(timer))
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .data-table thead tr { background-color: #f1f5f9; }
 .data-table th { padding: 0.75rem 1rem; text-align: left; color: #475569; font-weight: bold; font-size: 0.8rem; }
-.data-table td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
+.data-table td { padding: 0.65rem 1rem; border-bottom: 1px solid #f1f5f9; color: #1e293b; vertical-align: middle; }
 .data-table tbody tr:hover { background-color: #f8fafc; }
 .id-cell { font-family: monospace; font-weight: bold; color: #0ea5e9; }
-.cat-tag { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
-.cat-raw  { background: #fef9c3; color: #a16207; }
-.cat-part { background: #dbeafe; color: #1d4ed8; }
-.cat-cons { background: #f3e8ff; color: #7e22ce; }
-.cat-pack { background: #dcfce7; color: #15803d; }
 .status-badge { padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: bold; }
 .status-ok       { background: #dcfce7; color: #16a34a; }
 .status-low      { background: #fef9c3; color: #ca8a04; }
 .status-critical { background: #fee2e2; color: #dc2626; }
-.text-dark    { color: #1e293b; }
-.text-muted-sm { color: #94a3b8; font-size: 0.85rem; }
-.fw-bold { font-weight: bold; }
-.txn-list { padding: 0.75rem 1.25rem; display: flex; flex-direction: column; gap: 0; }
-.txn-item { display: flex; justify-content: space-between; align-items: center; padding: 0.7rem 0; border-bottom: 1px solid #f1f5f9; }
-.txn-item:last-child { border-bottom: none; }
-.txn-left { display: flex; flex-direction: column; gap: 0.2rem; }
-.txn-time { font-size: 0.75rem; color: #94a3b8; }
-.txn-name { font-size: 0.88rem; font-weight: bold; color: #1e293b; }
-.txn-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.2rem; }
-.txn-qty { font-size: 0.9rem; font-weight: bold; }
-.txn-type-badge { font-size: 0.72rem; font-weight: bold; padding: 0.15rem 0.5rem; border-radius: 999px; }
-.badge-out { background: #fee2e2; color: #dc2626; }
-.badge-in  { background: #dcfce7; color: #16a34a; }
-.text-white  { color: white; }
-.text-green  { color: #16a34a; }
-.text-cyan   { color: #0891b2; }
-.text-red    { color: #dc2626; }
+.progress-cell { min-width: 100px; }
+.progress-bg { height: 8px; background: #f1f5f9; border-radius: 999px; overflow: hidden; width: 100px; }
+.progress-fill { height: 100%; border-radius: 999px; transition: width 0.5s; }
+.bar-green  { background: #22c55e; }
+.bar-orange { background: #f97316; }
+.bar-red    { background: #ef4444; }
+.action-cell { display: flex; gap: 0.5rem; }
+.edit-btn { background: #dbeafe; color: #1d4ed8; border: none; padding: 0.3rem 0.65rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+.edit-btn:hover { background: #bfdbfe; }
+.del-btn { background: #fee2e2; color: #dc2626; border: none; padding: 0.3rem 0.6rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+.del-btn:hover { background: #fca5a5; }
+.no-data { text-align: center; padding: 2rem; color: #94a3b8; }
+.adjust-info { font-size: 0.9rem; color: #475569; margin: 0; }
+</style>
+<style>
+.material-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.material-modal { background: white !important; border-radius: 0.75rem; width: 420px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); overflow: hidden; }
+.material-modal-header { background: #1e293b !important; color: white !important; padding: 1rem 1.5rem; font-weight: bold; font-size: 1rem; }
+.material-modal-body { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 0.85rem; background: white; }
+.material-modal-footer { padding: 1rem 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid #f1f5f9; background: white; }
+.material-form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+.material-form-group label { font-size: 0.8rem; font-weight: bold; color: #475569; }
+.material-form-input { padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1 !important; border-radius: 6px; font-size: 0.88rem; outline: none; background: white !important; color: #1e293b !important; width: 100%; box-sizing: border-box; }
+.material-form-input:focus { border-color: #a855f7 !important; }
+.material-adjust-info { font-size: 0.9rem; color: #475569; margin: 0; }
+.material-btn { padding: 0.5rem 1.25rem; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.88rem; border: none; }
+.material-btn-primary { background: #a855f7 !important; color: white !important; }
+.material-btn-primary:hover { background: #9333ea !important; }
+.material-btn-outline { background: white !important; border: 1px solid #cbd5e1 !important; color: #475569 !important; }
+.material-btn-outline:hover { background: #f1f5f9 !important; }
 </style>
